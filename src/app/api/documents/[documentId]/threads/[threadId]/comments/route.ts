@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireWorkspaceMembership } from '@/lib/supabase/authorization'
+import { dispatchWebhooks } from '@/lib/agents/dispatch-webhooks'
 
 interface RouteContext {
   params: Promise<{ documentId: string; threadId: string }>
@@ -74,6 +75,14 @@ export async function POST(request: Request, context: RouteContext) {
       { status: 500 }
     )
   }
+
+  // Dispatch comment.created webhook (fire-and-forget)
+  dispatchWebhooks(doc.workspace_id, 'comment.created', {
+    comment_id: data.id,
+    thread_id: threadId,
+    document_id: documentId,
+    author_id: user.id,
+  })
 
   return NextResponse.json({ data, error: null }, { status: 201 })
 }

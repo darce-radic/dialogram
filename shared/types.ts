@@ -382,6 +382,8 @@ export interface Database {
           created_by: string
           is_active?: boolean
           last_used_at?: string | null
+          webhook_url?: string | null
+          webhook_secret?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -396,6 +398,8 @@ export interface Database {
           created_by?: string
           is_active?: boolean
           last_used_at?: string | null
+          webhook_url?: string | null
+          webhook_secret?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -428,6 +432,8 @@ export interface AgentKey {
   created_by: string
   is_active: boolean
   last_used_at: string | null
+  webhook_url: string | null
+  webhook_secret: string | null
   created_at: string
   updated_at: string
 }
