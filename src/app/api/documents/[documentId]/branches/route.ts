@@ -20,11 +20,16 @@ export async function GET(request: Request, context: RouteContext) {
 
   const { client } = auth
 
-  const { data: branches, error } = await client
+  const { searchParams } = new URL(request.url)
+  const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') ?? '100', 10) || 100), 500)
+  const offset = Math.max(0, parseInt(searchParams.get('offset') ?? '0', 10) || 0)
+
+  const { data: branches, error, count } = await client
     .from('document_branches')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('source_document_id', documentId)
     .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
 
   if (error) {
     return NextResponse.json(
@@ -33,7 +38,7 @@ export async function GET(request: Request, context: RouteContext) {
     )
   }
 
-  return NextResponse.json({ data: branches ?? [], error: null })
+  return NextResponse.json({ data: branches ?? [], pagination: { limit, offset, total: count ?? 0 }, error: null })
 }
 
 export async function POST(request: Request, context: RouteContext) {

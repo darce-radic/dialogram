@@ -37,9 +37,12 @@ export async function GET(request: Request) {
     )
   }
 
+  const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') ?? '100', 10) || 100), 500)
+  const offset = Math.max(0, parseInt(searchParams.get('offset') ?? '0', 10) || 0)
+
   let query = supabase
     .from('documents')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('workspace_id', workspaceId)
     .is('deleted_at', null)
     .order('position')
@@ -49,7 +52,7 @@ export async function GET(request: Request) {
     query = query.eq('folder_id', folderId)
   }
 
-  const { data, error } = await query
+  const { data, error, count } = await query.range(offset, offset + limit - 1)
 
   if (error) {
     return NextResponse.json(
@@ -58,7 +61,7 @@ export async function GET(request: Request) {
     )
   }
 
-  return NextResponse.json({ data, error: null })
+  return NextResponse.json({ data, pagination: { limit, offset, total: count ?? 0 }, error: null })
 }
 
 export async function POST(request: Request) {

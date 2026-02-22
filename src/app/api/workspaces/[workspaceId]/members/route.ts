@@ -6,7 +6,7 @@ interface RouteContext {
   params: Promise<{ workspaceId: string }>
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const { workspaceId } = await context.params
   const supabase = await createClient()
 
@@ -33,10 +33,15 @@ export async function GET(_request: Request, context: RouteContext) {
     )
   }
 
-  const { data: members, error } = await supabase
+  const { searchParams } = new URL(request.url)
+  const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') ?? '100', 10) || 100), 500)
+  const offset = Math.max(0, parseInt(searchParams.get('offset') ?? '0', 10) || 0)
+
+  const { data: members, error, count } = await supabase
     .from('workspace_members')
-    .select('user_id, role, users(id, full_name, email, avatar_url)')
+    .select('user_id, role, users(id, full_name, email, avatar_url)', { count: 'exact' })
     .eq('workspace_id', workspaceId)
+    .range(offset, offset + limit - 1)
 
   if (error) {
     return NextResponse.json(
@@ -56,5 +61,5 @@ export async function GET(_request: Request, context: RouteContext) {
     }
   })
 
-  return NextResponse.json({ data: users, error: null })
+  return NextResponse.json({ data: users, pagination: { limit, offset, total: count ?? 0 }, error: null })
 }

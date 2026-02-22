@@ -39,14 +39,19 @@ export async function GET(request: Request) {
     )
   }
 
+  const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') ?? '100', 10) || 100), 500)
+  const offset = Math.max(0, parseInt(searchParams.get('offset') ?? '0', 10) || 0)
+
   const admin = createAdminClient()
-  const { data, error } = await admin
+  const { data, error, count } = await admin
     .from('agent_keys')
     .select(
-      'id, workspace_id, name, key_prefix, role, permissions, created_by, is_active, last_used_at, webhook_url, created_at, updated_at'
+      'id, workspace_id, name, key_prefix, role, permissions, created_by, is_active, last_used_at, webhook_url, created_at, updated_at',
+      { count: 'exact' }
     )
     .eq('workspace_id', workspaceId)
     .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
 
   if (error) {
     return NextResponse.json(
@@ -55,7 +60,7 @@ export async function GET(request: Request) {
     )
   }
 
-  return NextResponse.json({ data, error: null })
+  return NextResponse.json({ data, pagination: { limit, offset, total: count ?? 0 }, error: null })
 }
 
 export async function POST(request: Request) {
