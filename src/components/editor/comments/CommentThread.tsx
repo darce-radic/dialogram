@@ -3,13 +3,14 @@
 import type { CommentThread as CommentThreadType } from "@/shared/types";
 import { CommentInput } from "./CommentInput";
 import { Button } from "@/components/ui/button";
-import { Check } from "lucide-react";
+import { Check, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CommentThreadProps {
   thread: CommentThreadType;
   isActive: boolean;
   resolved?: boolean;
+  agentNames?: Record<string, string>;
   onClick: () => void;
   onReply: (content: string) => void;
   onResolve: () => void;
@@ -19,10 +20,19 @@ export function CommentThreadComponent({
   thread,
   isActive,
   resolved,
+  agentNames,
   onClick,
   onReply,
   onResolve,
 }: CommentThreadProps) {
+  const getAuthorDisplay = (authorId: string) => {
+    const agentName = agentNames?.[authorId];
+    if (agentName) {
+      return { name: agentName, isAgent: true };
+    }
+    return { name: authorId || "Anonymous", isAgent: false };
+  };
+
   return (
     <div
       className={cn(
@@ -53,14 +63,18 @@ export function CommentThreadComponent({
       </div>
 
       <div className="space-y-2">
-        {thread.comments.map((comment) => (
-          <div key={comment.id} className="text-sm">
-            <span className="font-medium text-xs">
-              {comment.authorId || "Anonymous"}
-            </span>
-            <p className="mt-0.5">{comment.content}</p>
-          </div>
-        ))}
+        {thread.comments.map((comment) => {
+          const author = getAuthorDisplay(comment.authorId);
+          return (
+            <div key={comment.id} className="text-sm">
+              <span className="font-medium text-xs inline-flex items-center gap-1">
+                {author.isAgent && <Bot className="h-3 w-3 text-primary" />}
+                {author.name}
+              </span>
+              <p className="mt-0.5">{comment.content}</p>
+            </div>
+          );
+        })}
       </div>
 
       {isActive && !resolved && (

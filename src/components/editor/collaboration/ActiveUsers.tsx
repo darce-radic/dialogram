@@ -8,6 +8,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Bot } from "lucide-react";
 
 interface ActiveUsersProps {
   users: CollaborationUser[];
@@ -22,19 +23,29 @@ export function ActiveUsers({ users }: ActiveUsersProps) {
         {users.map((user) => (
           <Tooltip key={user.clientId}>
             <TooltipTrigger asChild>
-              <Avatar
-                className="h-8 w-8 border-2"
-                style={{ borderColor: user.color }}
-              >
-                <AvatarImage src={user.avatarUrl} alt={user.name} />
-                <AvatarFallback
-                  style={{ backgroundColor: user.color, color: "#fff" }}
+              <div className="relative">
+                <Avatar
+                  className="h-8 w-8 border-2"
+                  style={{ borderColor: user.color }}
                 >
-                  {user.name.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+                  <AvatarImage src={user.avatarUrl} alt={user.name} />
+                  <AvatarFallback
+                    style={{ backgroundColor: user.color, color: "#fff" }}
+                  >
+                    {user.name.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                {user.isAgent && (
+                  <div className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                    <Bot className="h-2.5 w-2.5" />
+                  </div>
+                )}
+              </div>
             </TooltipTrigger>
-            <TooltipContent>{user.name}</TooltipContent>
+            <TooltipContent>
+              {user.name}
+              {user.isAgent ? " (Agent)" : ""}
+            </TooltipContent>
           </Tooltip>
         ))}
       </div>

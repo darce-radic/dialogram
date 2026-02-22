@@ -405,6 +405,84 @@ export interface Database {
         }
         Relationships: []
       }
+      scratchpad_events: {
+        Row: ScratchpadEvent
+        Insert: {
+          id?: string
+          document_id: string
+          agent_key_id: string
+          event_type?: ScratchpadEventType
+          content: string
+          metadata?: Record<string, unknown>
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          document_id?: string
+          agent_key_id?: string
+          event_type?: ScratchpadEventType
+          content?: string
+          metadata?: Record<string, unknown>
+          created_at?: string
+        }
+        Relationships: []
+      }
+      document_branches: {
+        Row: DocumentBranch
+        Insert: {
+          id?: string
+          source_document_id: string
+          branch_document_id: string
+          branch_name: string
+          status?: BranchStatus
+          created_by: string
+          created_by_type?: 'user' | 'agent'
+          merged_by?: string | null
+          merged_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          source_document_id?: string
+          branch_document_id?: string
+          branch_name?: string
+          status?: BranchStatus
+          created_by?: string
+          created_by_type?: 'user' | 'agent'
+          merged_by?: string | null
+          merged_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      agent_memories: {
+        Row: AgentMemory
+        Insert: {
+          id?: string
+          agent_key_id: string
+          workspace_id: string
+          document_id?: string | null
+          content: string
+          embedding?: number[] | null
+          metadata?: Record<string, unknown>
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          agent_key_id?: string
+          workspace_id?: string
+          document_id?: string | null
+          content?: string
+          embedding?: number[] | null
+          metadata?: Record<string, unknown>
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -412,6 +490,8 @@ export interface Database {
       workspace_role: WorkspaceRole
       thread_type: ThreadType
       agent_role: AgentRole
+      scratchpad_event_type: ScratchpadEventType
+      branch_status: BranchStatus
     }
     CompositeTypes: Record<string, never>
   }
@@ -448,10 +528,53 @@ export type AgentKeyUpdate = Partial<
 > & { id: string }
 
 // -----------------------------------------------------------------------------
-// 8. Placeholder Exports for Other Agents
+// 8. Scratchpad Types
 // -----------------------------------------------------------------------------
 
-// @EditorCore: Add TipTap-specific types here (editor state, presence, etc.)
-// @AgentCore: Add webhook events, mention types, scratchpad types here
-// @DevOps: Add GitHub integration types here
-// @Federation: Add federation types here
+export type ScratchpadEventType = 'thinking' | 'tool_use' | 'progress' | 'error'
+
+export interface ScratchpadEvent {
+  id: string
+  document_id: string
+  agent_key_id: string
+  event_type: ScratchpadEventType
+  content: string
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+// -----------------------------------------------------------------------------
+// 9. Document Branch Types
+// -----------------------------------------------------------------------------
+
+export type BranchStatus = 'open' | 'merged' | 'rejected'
+
+export interface DocumentBranch {
+  id: string
+  source_document_id: string
+  branch_document_id: string
+  branch_name: string
+  status: BranchStatus
+  created_by: string
+  created_by_type: 'user' | 'agent'
+  merged_by: string | null
+  merged_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+// -----------------------------------------------------------------------------
+// 10. Agent Memory Types
+// -----------------------------------------------------------------------------
+
+export interface AgentMemory {
+  id: string
+  agent_key_id: string
+  workspace_id: string
+  document_id: string | null
+  content: string
+  embedding: number[] | null
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}

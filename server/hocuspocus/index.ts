@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Server } from "@hocuspocus/server";
 import { Database } from "@hocuspocus/extension-database";
 import { createClient } from "@supabase/supabase-js";
@@ -27,6 +28,48 @@ const server = new Server(
         throw new Error("No auth token provided");
       }
 
+      // Room name format: "workspaceId:documentId"
+      const [workspaceId] = documentName.split(":");
+      if (!workspaceId) {
+        throw new Error("Invalid room name format");
+      }
+
+      // Try agent key auth if token starts with dlg_
+      if (token.startsWith("dlg_")) {
+        const keyHash = createHash("sha256").update(token).digest("hex");
+        const { data: agentKey } = await supabase
+          .from("agent_keys")
+          .select("id, workspace_id, name, role, is_active")
+          .eq("key_hash", keyHash)
+          .eq("is_active", true)
+          .single();
+
+        if (!agentKey) {
+          throw new Error("Invalid agent key");
+        }
+
+        if (agentKey.workspace_id !== workspaceId) {
+          throw new Error("Agent key does not belong to this workspace");
+        }
+
+        // Update last_used_at (fire-and-forget)
+        supabase
+          .from("agent_keys")
+          .update({ last_used_at: new Date().toISOString() })
+          .eq("id", agentKey.id)
+          .then(() => {});
+
+        return {
+          user: {
+            id: agentKey.id,
+            name: agentKey.name,
+            role: agentKey.role,
+            isAgent: true,
+            agentRole: agentKey.role,
+          },
+        };
+      }
+
       // Validate the JWT via Supabase auth
       const {
         data: { user },
@@ -35,12 +78,6 @@ const server = new Server(
 
       if (error || !user) {
         throw new Error("Invalid auth token");
-      }
-
-      // Room name format: "workspaceId:documentId"
-      const [workspaceId] = documentName.split(":");
-      if (!workspaceId) {
-        throw new Error("Invalid room name format");
       }
 
       // Verify workspace membership

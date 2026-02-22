@@ -8,6 +8,7 @@ import { MessageSquare } from "lucide-react";
 interface CommentSidebarProps {
   threads: CommentThread[];
   activeThreadId: string | null;
+  agentNames?: Record<string, string>;
   onSelectThread: (id: string) => void;
   onReply: (threadId: string, content: string) => void;
   onResolve: (threadId: string) => void;
@@ -16,6 +17,7 @@ interface CommentSidebarProps {
 export function CommentSidebar({
   threads,
   activeThreadId,
+  agentNames,
   onSelectThread,
   onReply,
   onResolve,
@@ -41,6 +43,7 @@ export function CommentSidebar({
             key={thread.id}
             thread={thread}
             isActive={thread.id === activeThreadId}
+            agentNames={agentNames}
             onClick={() => onSelectThread(thread.id)}
             onReply={(content) => onReply(thread.id, content)}
             onResolve={() => onResolve(thread.id)}
@@ -56,6 +59,7 @@ export function CommentSidebar({
                 key={thread.id}
                 thread={thread}
                 isActive={thread.id === activeThreadId}
+                agentNames={agentNames}
                 onClick={() => onSelectThread(thread.id)}
                 onReply={(content) => onReply(thread.id, content)}
                 onResolve={() => onResolve(thread.id)}

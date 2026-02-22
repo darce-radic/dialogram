@@ -44,6 +44,8 @@ export interface CollaborationUser {
   name: string;
   color: string;
   avatarUrl?: string;
+  isAgent?: boolean;
+  agentRole?: string;
 }
 
 export interface LiveTableData {

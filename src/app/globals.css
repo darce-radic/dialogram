@@ -167,6 +167,16 @@
   border-bottom-color: rgba(200, 200, 200, 0.4);
 }
 
+/* Mention chip styles */
+.mention {
+  background-color: hsl(var(--primary) / 0.1);
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.25rem;
+  font-weight: 500;
+  color: hsl(var(--primary));
+  box-decoration-break: clone;
+}
+
 /* TipTap table styles */
 .ProseMirror table {
   border-collapse: collapse;
