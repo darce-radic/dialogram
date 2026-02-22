@@ -1,0 +1,8 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npm ci"
+
+[deploy]
+startCommand = "npx tsx server/hocuspocus/index.ts"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
