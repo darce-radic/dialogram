@@ -2,7 +2,7 @@
 
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import { useMemo, useState } from "react";
-import type { LiveTableData } from "@/shared/types";
+import type { LiveTableData } from "@/shared/editor-types";
 import {
   Table,
   TableBody,

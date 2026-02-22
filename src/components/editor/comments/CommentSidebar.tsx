@@ -1,6 +1,6 @@
 "use client";
 
-import type { CommentThread } from "@/shared/types";
+import type { CommentThread } from "@/shared/editor-types";
 import { CommentThreadComponent } from "./CommentThread";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageSquare } from "lucide-react";

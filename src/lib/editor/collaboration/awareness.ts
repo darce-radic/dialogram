@@ -1,5 +1,5 @@
 import type { HocuspocusProvider } from "@hocuspocus/provider";
-import type { CollaborationUser } from "@/shared/types";
+import type { CollaborationUser } from "@/shared/editor-types";
 
 export function setUserAwareness(
   provider: HocuspocusProvider,

@@ -21,7 +21,7 @@ import { MessageSquare, Brain, GitBranch } from "lucide-react";
 import Mention from "@tiptap/extension-mention";
 import { createMentionSuggestion } from "@/lib/editor/extensions/mention-suggestion";
 import type { MentionUser } from "@/components/editor/mentions/MentionList";
-import type { User } from "@/shared/types";
+import type { User } from "@/shared/editor-types";
 import type { DocumentBranch } from "@shared/types";
 
 type RightPanel = "comments" | "scratchpad" | "branches" | "branch-diff" | null;

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireWorkspaceMembership } from '@/lib/supabase/authorization'
 import { dispatchWebhooks } from '@/lib/agents/dispatch-webhooks'
 
@@ -143,6 +144,46 @@ export async function PATCH(request: Request, context: RouteContext) {
     )
   }
 
+  // Merge: use atomic RPC to prevent race conditions
+  if (body.status === 'merged') {
+    const admin = createAdminClient()
+    const { error: mergeError } = await admin.rpc('merge_document_branch', {
+      p_branch_id: branchId,
+      p_source_document_id: documentId,
+      p_merged_by: user.id,
+    })
+
+    if (mergeError) {
+      const status = mergeError.message.includes('not found')
+        ? 404
+        : mergeError.message.includes('not open')
+          ? 400
+          : 500
+      return NextResponse.json(
+        { data: null, error: mergeError.message },
+        { status }
+      )
+    }
+
+    // Fetch the updated branch for the response
+    const { data: updatedBranch } = await supabase
+      .from('document_branches')
+      .select('*')
+      .eq('id', branchId)
+      .single()
+
+    dispatchWebhooks(doc.workspace_id, 'branch.merged', {
+      branch_id: branchId,
+      source_document_id: documentId,
+      branch_document_id: updatedBranch?.branch_document_id,
+      status: 'merged',
+      updated_by: user.id,
+    })
+
+    return NextResponse.json({ data: updatedBranch, error: null })
+  }
+
+  // Reject: simple status update (no content copy needed)
   const { data: branch } = await supabase
     .from('document_branches')
     .select('*')
@@ -164,32 +205,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     )
   }
 
-  // If merging, copy branch content to source
-  if (body.status === 'merged') {
-    const { data: branchDoc } = await supabase
-      .from('documents')
-      .select('content')
-      .eq('id', branch.branch_document_id)
-      .single()
-
-    if (branchDoc) {
-      await supabase
-        .from('documents')
-        .update({
-          content: branchDoc.content,
-          updated_at: new Date().toISOString(),
-          last_edited_by: user.id,
-        })
-        .eq('id', documentId)
-    }
-  }
-
   const { data: updatedBranch, error } = await supabase
     .from('document_branches')
     .update({
-      status: body.status,
-      merged_by: body.status === 'merged' ? user.id : null,
-      merged_at: body.status === 'merged' ? new Date().toISOString() : null,
+      status: 'rejected',
       updated_at: new Date().toISOString(),
     })
     .eq('id', branchId)
@@ -203,13 +222,11 @@ export async function PATCH(request: Request, context: RouteContext) {
     )
   }
 
-  const eventType =
-    body.status === 'merged' ? 'branch.merged' : 'branch.rejected'
-  dispatchWebhooks(doc.workspace_id, eventType, {
+  dispatchWebhooks(doc.workspace_id, 'branch.rejected', {
     branch_id: branchId,
     source_document_id: documentId,
     branch_document_id: branch.branch_document_id,
-    status: body.status,
+    status: 'rejected',
     updated_by: user.id,
   })
 

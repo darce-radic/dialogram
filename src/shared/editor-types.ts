@@ -1,4 +1,8 @@
-// === Editor-Related Types (proposed by @EditorCore) ===
+// =============================================================================
+// src/shared/editor-types.ts — Client-side camelCase view models for the editor.
+// These are NOT database row types. DB types live in shared/types.ts (@shared/*).
+// The use-comments hook maps from DB snake_case → these camelCase shapes.
+// =============================================================================
 
 export interface User {
   id: string;

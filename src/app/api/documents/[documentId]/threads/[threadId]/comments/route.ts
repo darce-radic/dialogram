@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { requireWorkspaceMembership } from '@/lib/supabase/authorization'
-import { authenticateAgent } from '@/lib/supabase/agent-auth'
 import { dispatchWebhooks } from '@/lib/agents/dispatch-webhooks'
+import {
+  authenticateDocumentRoute,
+  isAuthError,
+  getAuthorId,
+  parseJsonBody,
+  isParseError,
+} from '@/lib/supabase/route-auth'
 
 interface RouteContext {
   params: Promise<{ documentId: string; threadId: string }>
@@ -11,131 +14,15 @@ interface RouteContext {
 
 export async function POST(request: Request, context: RouteContext) {
   const { documentId, threadId } = await context.params
-  const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const auth = await authenticateDocumentRoute(request, documentId, {
+    requiredAgentRoles: ['commenter', 'editor'],
+  })
+  if (isAuthError(auth)) return auth.response
 
-  if (!user) {
-    // Try agent auth
-    const agentAuth = await authenticateAgent(
-      request.headers.get('authorization')
-    )
-    if (!agentAuth.authenticated || !agentAuth.agentKey) {
-      return NextResponse.json(
-        { data: null, error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    if (
-      agentAuth.agentKey.role !== 'commenter' &&
-      agentAuth.agentKey.role !== 'editor'
-    ) {
-      return NextResponse.json(
-        { data: null, error: 'Forbidden: commenter or editor role required' },
-        { status: 403 }
-      )
-    }
-
-    const admin = createAdminClient()
-    const { data: doc } = await admin
-      .from('documents')
-      .select('workspace_id')
-      .eq('id', documentId)
-      .is('deleted_at', null)
-      .single()
-
-    if (!doc) {
-      return NextResponse.json(
-        { data: null, error: 'Document not found' },
-        { status: 404 }
-      )
-    }
-
-    if (doc.workspace_id !== agentAuth.agentKey.workspace_id) {
-      return NextResponse.json(
-        { data: null, error: 'Forbidden' },
-        { status: 403 }
-      )
-    }
-
-    let body: Record<string, unknown>
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json(
-        { data: null, error: 'Invalid JSON body' },
-        { status: 400 }
-      )
-    }
-
-    if (!body.content) {
-      return NextResponse.json(
-        { data: null, error: 'content is required' },
-        { status: 400 }
-      )
-    }
-
-    const { data, error } = await admin
-      .from('comments')
-      .insert({
-        id: body.id ?? undefined,
-        thread_id: threadId,
-        document_id: documentId,
-        author_id: agentAuth.agentKey.id,
-        body: body.content,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      return NextResponse.json(
-        { data: null, error: error.message },
-        { status: 500 }
-      )
-    }
-
-    dispatchWebhooks(doc.workspace_id, 'comment.created', {
-      comment_id: data.id,
-      thread_id: threadId,
-      document_id: documentId,
-      author_id: agentAuth.agentKey.id,
-      author_type: 'agent',
-    })
-
-    return NextResponse.json({ data, error: null }, { status: 201 })
-  }
-
-  // User auth path
-  const { data: doc } = await supabase
-    .from('documents')
-    .select('workspace_id')
-    .eq('id', documentId)
-    .is('deleted_at', null)
-    .single()
-
-  if (!doc) {
-    return NextResponse.json(
-      { data: null, error: 'Document not found' },
-      { status: 404 }
-    )
-  }
-
-  const { authorized } = await requireWorkspaceMembership(
-    supabase,
-    user.id,
-    doc.workspace_id
-  )
-  if (!authorized) {
-    return NextResponse.json(
-      { data: null, error: 'Forbidden' },
-      { status: 403 }
-    )
-  }
-
-  const body = await request.json()
+  const bodyResult = await parseJsonBody(request)
+  if (isParseError(bodyResult)) return bodyResult
+  const body = bodyResult
 
   if (!body.content) {
     return NextResponse.json(
@@ -144,13 +31,17 @@ export async function POST(request: Request, context: RouteContext) {
     )
   }
 
-  const { data, error } = await supabase
+  const { client, workspaceId } = auth
+  const authorId = getAuthorId(auth)
+  const authorType = auth.type
+
+  const { data, error } = await client
     .from('comments')
     .insert({
       id: body.id ?? undefined,
       thread_id: threadId,
       document_id: documentId,
-      author_id: user.id,
+      author_id: authorId,
       body: body.content,
     })
     .select()
@@ -163,12 +54,12 @@ export async function POST(request: Request, context: RouteContext) {
     )
   }
 
-  dispatchWebhooks(doc.workspace_id, 'comment.created', {
+  dispatchWebhooks(workspaceId, 'comment.created', {
     comment_id: data.id,
     thread_id: threadId,
     document_id: documentId,
-    author_id: user.id,
-    author_type: 'user',
+    author_id: authorId,
+    author_type: authorType,
   })
 
   return NextResponse.json({ data, error: null }, { status: 201 })

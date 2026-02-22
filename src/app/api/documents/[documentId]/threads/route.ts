@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { requireWorkspaceMembership } from '@/lib/supabase/authorization'
-import { authenticateAgent } from '@/lib/supabase/agent-auth'
 import { dispatchWebhooks } from '@/lib/agents/dispatch-webhooks'
+import {
+  authenticateDocumentRoute,
+  isAuthError,
+  getAuthorId,
+  parseJsonBody,
+  isParseError,
+} from '@/lib/supabase/route-auth'
 
 interface RouteContext {
   params: Promise<{ documentId: string }>
@@ -11,119 +14,13 @@ interface RouteContext {
 
 export async function GET(request: Request, context: RouteContext) {
   const { documentId } = await context.params
-  const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const auth = await authenticateDocumentRoute(request, documentId)
+  if (isAuthError(auth)) return auth.response
 
-  if (!user) {
-    // Try agent auth
-    const agentAuth = await authenticateAgent(
-      request.headers.get('authorization')
-    )
-    if (!agentAuth.authenticated || !agentAuth.agentKey) {
-      return NextResponse.json(
-        { data: null, error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+  const { client } = auth
 
-    const admin = createAdminClient()
-    const { data: doc } = await admin
-      .from('documents')
-      .select('workspace_id')
-      .eq('id', documentId)
-      .is('deleted_at', null)
-      .single()
-
-    if (!doc) {
-      return NextResponse.json(
-        { data: null, error: 'Document not found' },
-        { status: 404 }
-      )
-    }
-
-    if (doc.workspace_id !== agentAuth.agentKey.workspace_id) {
-      return NextResponse.json(
-        { data: null, error: 'Forbidden' },
-        { status: 403 }
-      )
-    }
-
-    // Fetch threads with admin client
-    const { data: threads, error: threadsError } = await admin
-      .from('comment_threads')
-      .select('*')
-      .eq('document_id', documentId)
-      .order('created_at', { ascending: false })
-
-    if (threadsError) {
-      return NextResponse.json(
-        { data: null, error: threadsError.message },
-        { status: 500 }
-      )
-    }
-
-    const threadIds = (threads ?? []).map((t: { id: string }) => t.id)
-    let comments: Record<string, unknown>[] = []
-
-    if (threadIds.length > 0) {
-      const { data: commentsData } = await admin
-        .from('comments')
-        .select('*')
-        .in('thread_id', threadIds)
-        .order('created_at')
-
-      comments = commentsData ?? []
-    }
-
-    const commentsByThread: Record<string, Record<string, unknown>[]> = {}
-    for (const comment of comments) {
-      const tid = comment.thread_id as string
-      if (!commentsByThread[tid]) commentsByThread[tid] = []
-      commentsByThread[tid].push(comment)
-    }
-
-    const threadsWithComments = (threads ?? []).map(
-      (thread: Record<string, unknown>) => ({
-        ...thread,
-        comments: commentsByThread[thread.id as string] ?? [],
-      })
-    )
-
-    return NextResponse.json({ data: threadsWithComments, error: null })
-  }
-
-  // User auth path
-  const { data: doc } = await supabase
-    .from('documents')
-    .select('workspace_id')
-    .eq('id', documentId)
-    .is('deleted_at', null)
-    .single()
-
-  if (!doc) {
-    return NextResponse.json(
-      { data: null, error: 'Document not found' },
-      { status: 404 }
-    )
-  }
-
-  const { authorized } = await requireWorkspaceMembership(
-    supabase,
-    user.id,
-    doc.workspace_id
-  )
-  if (!authorized) {
-    return NextResponse.json(
-      { data: null, error: 'Forbidden' },
-      { status: 403 }
-    )
-  }
-
-  // Fetch threads with their comments
-  const { data: threads, error: threadsError } = await supabase
+  const { data: threads, error: threadsError } = await client
     .from('comment_threads')
     .select('*')
     .eq('document_id', documentId)
@@ -140,7 +37,7 @@ export async function GET(request: Request, context: RouteContext) {
   let comments: Record<string, unknown>[] = []
 
   if (threadIds.length > 0) {
-    const { data: commentsData } = await supabase
+    const { data: commentsData } = await client
       .from('comments')
       .select('*')
       .in('thread_id', threadIds)
@@ -168,153 +65,15 @@ export async function GET(request: Request, context: RouteContext) {
 
 export async function POST(request: Request, context: RouteContext) {
   const { documentId } = await context.params
-  const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const auth = await authenticateDocumentRoute(request, documentId, {
+    requiredAgentRoles: ['commenter', 'editor'],
+  })
+  if (isAuthError(auth)) return auth.response
 
-  if (!user) {
-    // Try agent auth
-    const agentAuth = await authenticateAgent(
-      request.headers.get('authorization')
-    )
-    if (!agentAuth.authenticated || !agentAuth.agentKey) {
-      return NextResponse.json(
-        { data: null, error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    if (
-      agentAuth.agentKey.role !== 'commenter' &&
-      agentAuth.agentKey.role !== 'editor'
-    ) {
-      return NextResponse.json(
-        { data: null, error: 'Forbidden: commenter or editor role required' },
-        { status: 403 }
-      )
-    }
-
-    const admin = createAdminClient()
-    const { data: doc } = await admin
-      .from('documents')
-      .select('workspace_id')
-      .eq('id', documentId)
-      .is('deleted_at', null)
-      .single()
-
-    if (!doc) {
-      return NextResponse.json(
-        { data: null, error: 'Document not found' },
-        { status: 404 }
-      )
-    }
-
-    if (doc.workspace_id !== agentAuth.agentKey.workspace_id) {
-      return NextResponse.json(
-        { data: null, error: 'Forbidden' },
-        { status: 403 }
-      )
-    }
-
-    let body: Record<string, unknown>
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json(
-        { data: null, error: 'Invalid JSON body' },
-        { status: 400 }
-      )
-    }
-
-    if (!body.content) {
-      return NextResponse.json(
-        { data: null, error: 'content is required' },
-        { status: 400 }
-      )
-    }
-
-    const { data: thread, error: threadError } = await admin
-      .from('comment_threads')
-      .insert({
-        id: body.id ?? undefined,
-        document_id: documentId,
-        thread_type: body.thread_type ?? 'document',
-        inline_ref: body.inline_ref ?? null,
-        created_by: agentAuth.agentKey.id,
-      })
-      .select()
-      .single()
-
-    if (threadError) {
-      return NextResponse.json(
-        { data: null, error: threadError.message },
-        { status: 500 }
-      )
-    }
-
-    const { data: comment, error: commentError } = await admin
-      .from('comments')
-      .insert({
-        id: body.comment_id ?? undefined,
-        thread_id: thread.id,
-        document_id: documentId,
-        author_id: agentAuth.agentKey.id,
-        body: body.content,
-      })
-      .select()
-      .single()
-
-    if (commentError) {
-      return NextResponse.json(
-        { data: null, error: commentError.message },
-        { status: 500 }
-      )
-    }
-
-    dispatchWebhooks(doc.workspace_id, 'thread.created', {
-      thread_id: thread.id,
-      comment_id: comment.id,
-      document_id: documentId,
-      author_id: agentAuth.agentKey.id,
-      author_type: 'agent',
-    })
-
-    return NextResponse.json(
-      { data: { ...thread, comments: [comment] }, error: null },
-      { status: 201 }
-    )
-  }
-
-  // User auth path
-  const { data: doc } = await supabase
-    .from('documents')
-    .select('workspace_id')
-    .eq('id', documentId)
-    .is('deleted_at', null)
-    .single()
-
-  if (!doc) {
-    return NextResponse.json(
-      { data: null, error: 'Document not found' },
-      { status: 404 }
-    )
-  }
-
-  const { authorized } = await requireWorkspaceMembership(
-    supabase,
-    user.id,
-    doc.workspace_id
-  )
-  if (!authorized) {
-    return NextResponse.json(
-      { data: null, error: 'Forbidden' },
-      { status: 403 }
-    )
-  }
-
-  const body = await request.json()
+  const bodyResult = await parseJsonBody(request)
+  if (isParseError(bodyResult)) return bodyResult
+  const body = bodyResult
 
   if (!body.content) {
     return NextResponse.json(
@@ -323,14 +82,19 @@ export async function POST(request: Request, context: RouteContext) {
     )
   }
 
-  const { data: thread, error: threadError } = await supabase
+  const { client, workspaceId } = auth
+  const authorId = getAuthorId(auth)
+  const authorType = auth.type
+  const defaultThreadType = auth.type === 'agent' ? 'document' : 'inline'
+
+  const { data: thread, error: threadError } = await client
     .from('comment_threads')
     .insert({
       id: body.id ?? undefined,
       document_id: documentId,
-      thread_type: body.thread_type ?? 'inline',
+      thread_type: body.thread_type ?? defaultThreadType,
       inline_ref: body.inline_ref ?? null,
-      created_by: user.id,
+      created_by: authorId,
     })
     .select()
     .single()
@@ -342,13 +106,13 @@ export async function POST(request: Request, context: RouteContext) {
     )
   }
 
-  const { data: comment, error: commentError } = await supabase
+  const { data: comment, error: commentError } = await client
     .from('comments')
     .insert({
       id: body.comment_id ?? undefined,
       thread_id: thread.id,
       document_id: documentId,
-      author_id: user.id,
+      author_id: authorId,
       body: body.content,
     })
     .select()
@@ -361,22 +125,22 @@ export async function POST(request: Request, context: RouteContext) {
     )
   }
 
-  dispatchWebhooks(doc.workspace_id, 'thread.created', {
+  dispatchWebhooks(workspaceId, 'thread.created', {
     thread_id: thread.id,
     comment_id: comment.id,
     document_id: documentId,
-    author_id: user.id,
-    author_type: 'user',
+    author_id: authorId,
+    author_type: authorType,
   })
 
   // Dispatch mention.created webhooks if mentions present
   if (body.mentions && Array.isArray(body.mentions)) {
     for (const mentionedUserId of body.mentions) {
-      dispatchWebhooks(doc.workspace_id, 'mention.created', {
+      dispatchWebhooks(workspaceId, 'mention.created', {
         thread_id: thread.id,
         document_id: documentId,
         mentioned_user_id: mentionedUserId,
-        author_id: user.id,
+        author_id: authorId,
       })
     }
   }

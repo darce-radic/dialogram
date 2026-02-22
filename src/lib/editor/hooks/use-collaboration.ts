@@ -6,7 +6,7 @@ import type { HocuspocusProvider } from "@hocuspocus/provider";
 import { createCollaborationProvider } from "../collaboration/provider";
 import { setUserAwareness, getConnectedUsers } from "../collaboration/awareness";
 import { getColorForUser } from "../utils/color-generator";
-import type { CollaborationUser, User } from "@/shared/types";
+import type { CollaborationUser, User } from "@/shared/editor-types";
 
 interface UseCollaborationOptions {
   documentId: string;

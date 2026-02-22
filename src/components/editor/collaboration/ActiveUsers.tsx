@@ -1,6 +1,6 @@
 "use client";
 
-import type { CollaborationUser } from "@/shared/types";
+import type { CollaborationUser } from "@/shared/editor-types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Tooltip,

@@ -1,6 +1,6 @@
 "use client";
 
-import type { CommentThread as CommentThreadType } from "@/shared/types";
+import type { CommentThread as CommentThreadType } from "@/shared/editor-types";
 import { CommentInput } from "./CommentInput";
 import { Button } from "@/components/ui/button";
 import { Check, Bot } from "lucide-react";

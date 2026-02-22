@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { Editor } from "@tiptap/react";
-import type { CommentThread } from "@/shared/types";
+import type { CommentThread } from "@/shared/editor-types";
 import * as Y from "yjs";
 
 interface UseCommentsOptions {
