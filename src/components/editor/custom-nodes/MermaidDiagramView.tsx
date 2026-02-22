@@ -17,6 +17,8 @@ export function MermaidDiagramView({ node }: ReactNodeViewProps) {
     (async () => {
       try {
         const mermaid = (await import("mermaid")).default;
+        const DOMPurify = (await import("isomorphic-dompurify")).default;
+
         mermaid.initialize({
           startOnLoad: false,
           theme: "default",
@@ -25,9 +27,13 @@ export function MermaidDiagramView({ node }: ReactNodeViewProps) {
 
         const uniqueId = `mermaid-${diagramId}-${Date.now()}`;
         const { svg } = await mermaid.render(uniqueId, source);
+        const sanitized = DOMPurify.sanitize(svg, {
+          USE_PROFILES: { svg: true, svgFilters: true },
+          ADD_TAGS: ["foreignObject"],
+        });
 
         if (!cancelled) {
-          setSvgContent(svg);
+          setSvgContent(sanitized);
           setError(null);
         }
       } catch (err) {

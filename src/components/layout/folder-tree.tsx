@@ -9,7 +9,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { createClient } from '@/lib/supabase/client'
 import type { Folder } from '@shared/types'
 
 interface FolderTreeProps {
@@ -103,19 +102,19 @@ export function FolderTree({
       return
     }
 
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) return
-
-    await supabase.from('folders').insert({
-      workspace_id: workspaceId,
-      name: newName.trim(),
-      created_by: user.id,
-      position: folders.length,
-    })
+    try {
+      await fetch('/api/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          name: newName.trim(),
+          position: folders.length,
+        }),
+      })
+    } catch {
+      // Silently handle network errors
+    }
 
     setNewName('')
     setCreating(false)

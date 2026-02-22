@@ -34,6 +34,8 @@ export function useCollaboration(
   const [isSynced, setIsSynced] = useState(false);
   const providerRef = useRef<HocuspocusProvider | null>(null);
 
+  // Only recreate the Yjs doc when documentId changes. User identity changes
+  // should NOT trigger a new doc — that would reset all collaborative state.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const ydoc = useMemo(() => new Y.Doc(), [documentId]);
 
@@ -78,6 +80,9 @@ export function useCollaboration(
       ydoc.destroy();
       providerRef.current = null;
     };
+    // Intentionally omitting `user` object — only user.id is relevant for
+    // reconnection. Including the full user object would cause reconnects
+    // on profile changes (name, avatar) which is undesirable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId, workspaceId, user.id, serverUrl, token, enabled]);
 

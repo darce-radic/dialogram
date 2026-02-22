@@ -17,6 +17,7 @@ import { ScratchpadPanel } from "./scratchpad/ScratchpadPanel";
 import { BranchList } from "./branches/BranchList";
 import { BranchDiffView } from "./branches/BranchDiffView";
 import { Button } from "@/components/ui/button";
+import { EditorErrorBoundary } from "./EditorErrorBoundary";
 import { MessageSquare, Brain, GitBranch } from "lucide-react";
 import Mention from "@tiptap/extension-mention";
 import { createMentionSuggestion } from "@/lib/editor/extensions/mention-suggestion";
@@ -195,6 +196,7 @@ export function Editor({
   );
 
   return (
+    <EditorErrorBoundary>
     <div className="flex w-full h-full bg-background">
       <div className="flex flex-col flex-1 min-w-0">
         <div className="flex items-center justify-between border-b">
@@ -283,5 +285,6 @@ export function Editor({
         />
       )}
     </div>
+    </EditorErrorBoundary>
   );
 }

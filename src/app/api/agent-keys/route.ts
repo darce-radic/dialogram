@@ -71,7 +71,15 @@ export async function POST(request: Request) {
     )
   }
 
-  const body = await request.json()
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json(
+      { data: null, error: 'Invalid JSON body' },
+      { status: 400 }
+    )
+  }
 
   if (!body.workspace_id || !body.name) {
     return NextResponse.json(
@@ -83,7 +91,7 @@ export async function POST(request: Request) {
   const { authorized, role } = await requireWorkspaceMembership(
     supabase,
     user.id,
-    body.workspace_id
+    body.workspace_id as string
   )
   if (!authorized || (role !== 'owner' && role !== 'admin')) {
     return NextResponse.json(
@@ -105,14 +113,14 @@ export async function POST(request: Request) {
   const { data, error } = await admin
     .from('agent_keys')
     .insert({
-      workspace_id: body.workspace_id,
-      name: body.name,
+      workspace_id: body.workspace_id as string,
+      name: body.name as string,
       key_prefix: keyPrefix,
       key_hash: keyHash,
-      role: body.role ?? 'reader',
-      permissions: body.permissions ?? {},
+      role: (body.role as string) ?? 'reader',
+      permissions: (body.permissions as Record<string, unknown>) ?? {},
       created_by: user.id,
-      webhook_url: body.webhook_url ?? null,
+      webhook_url: (body.webhook_url as string) ?? null,
       webhook_secret: webhookSecret,
     })
     .select(

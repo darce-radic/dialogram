@@ -74,7 +74,15 @@ export async function POST(request: Request) {
     )
   }
 
-  const body = await request.json()
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json(
+      { data: null, error: 'Invalid JSON body' },
+      { status: 400 }
+    )
+  }
 
   if (!body.workspace_id) {
     return NextResponse.json(
@@ -86,7 +94,7 @@ export async function POST(request: Request) {
   const { authorized } = await requireWorkspaceMembership(
     supabase,
     user.id,
-    body.workspace_id
+    body.workspace_id as string
   )
   if (!authorized) {
     return NextResponse.json(
@@ -99,11 +107,11 @@ export async function POST(request: Request) {
     .from('documents')
     .insert({
       workspace_id: body.workspace_id,
-      title: body.title ?? 'Untitled',
-      folder_id: body.folder_id ?? null,
-      content: body.content ?? null,
+      title: (body.title as string) ?? 'Untitled',
+      folder_id: (body.folder_id as string) ?? null,
+      content: (body.content as Record<string, unknown>) ?? null,
       created_by: user.id,
-      position: body.position ?? 0,
+      position: (body.position as number) ?? 0,
     })
     .select()
     .single()

@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { requireWorkspaceMembership } from '@/lib/supabase/authorization'
-import { authenticateAgent } from '@/lib/supabase/agent-auth'
 import { dispatchWebhooks } from '@/lib/agents/dispatch-webhooks'
+import {
+  authenticateDocumentRoute,
+  isAuthError,
+  getAuthorId,
+  parseJsonBody,
+  isParseError,
+} from '@/lib/supabase/route-auth'
 
 interface RouteContext {
   params: Promise<{ documentId: string }>
@@ -11,50 +14,13 @@ interface RouteContext {
 
 export async function GET(request: Request, context: RouteContext) {
   const { documentId } = await context.params
-  const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const auth = await authenticateDocumentRoute(request, documentId)
+  if (isAuthError(auth)) return auth.response
 
-  // Try agent auth if no user session
-  if (!user) {
-    const agentAuth = await authenticateAgent(
-      request.headers.get('authorization')
-    )
-    if (!agentAuth.authenticated || !agentAuth.agentKey) {
-      return NextResponse.json(
-        { data: null, error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+  const { client } = auth
 
-    const admin = createAdminClient()
-    const { data, error } = await admin
-      .from('documents')
-      .select('*')
-      .eq('id', documentId)
-      .is('deleted_at', null)
-      .single()
-
-    if (error) {
-      return NextResponse.json(
-        { data: null, error: error.message },
-        { status: error.code === 'PGRST116' ? 404 : 500 }
-      )
-    }
-
-    if (data.workspace_id !== agentAuth.agentKey.workspace_id) {
-      return NextResponse.json(
-        { data: null, error: 'Forbidden' },
-        { status: 403 }
-      )
-    }
-
-    return NextResponse.json({ data, error: null })
-  }
-
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('documents')
     .select('*')
     .eq('id', documentId)
@@ -68,147 +34,28 @@ export async function GET(request: Request, context: RouteContext) {
     )
   }
 
-  const { authorized } = await requireWorkspaceMembership(
-    supabase,
-    user.id,
-    data.workspace_id
-  )
-  if (!authorized) {
-    return NextResponse.json(
-      { data: null, error: 'Forbidden' },
-      { status: 403 }
-    )
-  }
-
   return NextResponse.json({ data, error: null })
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
   const { documentId } = await context.params
-  const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const auth = await authenticateDocumentRoute(request, documentId, {
+    requiredAgentRoles: ['editor'],
+  })
+  if (isAuthError(auth)) return auth.response
 
-  let workspaceId: string
-  let editorId: string
+  const bodyResult = await parseJsonBody(request)
+  if (isParseError(bodyResult)) return bodyResult
+  const body = bodyResult
 
-  // Try agent auth if no user session
-  if (!user) {
-    const agentAuth = await authenticateAgent(
-      request.headers.get('authorization')
-    )
-    if (!agentAuth.authenticated || !agentAuth.agentKey) {
-      return NextResponse.json(
-        { data: null, error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    if (agentAuth.agentKey.role !== 'editor') {
-      return NextResponse.json(
-        { data: null, error: 'Forbidden: editor role required' },
-        { status: 403 }
-      )
-    }
-
-    const admin = createAdminClient()
-    const { data: doc } = await admin
-      .from('documents')
-      .select('workspace_id')
-      .eq('id', documentId)
-      .is('deleted_at', null)
-      .single()
-
-    if (!doc) {
-      return NextResponse.json(
-        { data: null, error: 'Not found' },
-        { status: 404 }
-      )
-    }
-
-    if (doc.workspace_id !== agentAuth.agentKey.workspace_id) {
-      return NextResponse.json(
-        { data: null, error: 'Forbidden' },
-        { status: 403 }
-      )
-    }
-
-    workspaceId = doc.workspace_id
-    editorId = agentAuth.agentKey.id
-
-    const body = await request.json()
-
-    const updateData: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-      last_edited_by: agentAuth.agentKey.created_by,
-    }
-
-    if (body.title !== undefined) updateData.title = body.title
-    if (body.content !== undefined) updateData.content = body.content
-    if (body.folder_id !== undefined) updateData.folder_id = body.folder_id
-    if (body.position !== undefined) updateData.position = body.position
-
-    const { data, error } = await admin
-      .from('documents')
-      .update(updateData)
-      .eq('id', documentId)
-      .select()
-      .single()
-
-    if (error) {
-      return NextResponse.json(
-        { data: null, error: error.message },
-        { status: 500 }
-      )
-    }
-
-    // Dispatch doc.updated webhook
-    dispatchWebhooks(workspaceId, 'doc.updated', {
-      document_id: documentId,
-      updated_by: editorId,
-      updated_by_type: 'agent',
-      fields_changed: Object.keys(body),
-    })
-
-    return NextResponse.json({ data, error: null })
-  }
-
-  // User auth path
-  const { data: doc } = await supabase
-    .from('documents')
-    .select('workspace_id')
-    .eq('id', documentId)
-    .is('deleted_at', null)
-    .single()
-
-  if (!doc) {
-    return NextResponse.json(
-      { data: null, error: 'Not found' },
-      { status: 404 }
-    )
-  }
-
-  const { authorized } = await requireWorkspaceMembership(
-    supabase,
-    user.id,
-    doc.workspace_id
-  )
-  if (!authorized) {
-    return NextResponse.json(
-      { data: null, error: 'Forbidden' },
-      { status: 403 }
-    )
-  }
-
-  workspaceId = doc.workspace_id
-
-  const body = await request.json()
+  const { client, workspaceId } = auth
+  const authorId = getAuthorId(auth)
+  const authorType = auth.type
 
   const updateData: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
-    last_edited_by: user.id,
+    last_edited_by: auth.type === 'agent' ? auth.agentKey.created_by : authorId,
   }
 
   if (body.title !== undefined) updateData.title = body.title
@@ -216,7 +63,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.folder_id !== undefined) updateData.folder_id = body.folder_id
   if (body.position !== undefined) updateData.position = body.position
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('documents')
     .update(updateData)
     .eq('id', documentId)
@@ -230,59 +77,38 @@ export async function PATCH(request: Request, context: RouteContext) {
     )
   }
 
-  // Dispatch doc.updated webhook
   dispatchWebhooks(workspaceId, 'doc.updated', {
     document_id: documentId,
-    updated_by: user.id,
-    updated_by_type: 'user',
+    updated_by: authorId,
+    updated_by_type: authorType,
     fields_changed: Object.keys(body),
   })
 
   return NextResponse.json({ data, error: null })
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export async function DELETE(request: Request, context: RouteContext) {
   const { documentId } = await context.params
-  const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // DELETE is user-only — no agent support
+  const auth = await authenticateDocumentRoute(request, documentId)
+  if (isAuthError(auth)) return auth.response
 
-  if (!user) {
+  if (auth.type !== 'user') {
     return NextResponse.json(
-      { data: null, error: 'Unauthorized' },
-      { status: 401 }
-    )
-  }
-
-  const { data: doc } = await supabase
-    .from('documents')
-    .select('workspace_id')
-    .eq('id', documentId)
-    .is('deleted_at', null)
-    .single()
-
-  if (!doc) {
-    return NextResponse.json(
-      { data: null, error: 'Not found' },
-      { status: 404 }
-    )
-  }
-
-  const { authorized, role } = await requireWorkspaceMembership(
-    supabase,
-    user.id,
-    doc.workspace_id
-  )
-  if (!authorized || (role !== 'owner' && role !== 'admin')) {
-    return NextResponse.json(
-      { data: null, error: 'Forbidden' },
+      { data: null, error: 'Forbidden: user access required' },
       { status: 403 }
     )
   }
 
-  const { data, error } = await supabase
+  if (auth.role !== 'owner' && auth.role !== 'admin') {
+    return NextResponse.json(
+      { data: null, error: 'Forbidden: owner or admin required' },
+      { status: 403 }
+    )
+  }
+
+  const { data, error } = await auth.client
     .from('documents')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', documentId)

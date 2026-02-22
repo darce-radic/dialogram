@@ -86,6 +86,7 @@ export function useComments({
           const thread: CommentThread = {
             id: dbThread.id,
             documentId: dbThread.document_id,
+            threadType: dbThread.thread_type ?? "inline",
             anchorFrom: dbThread.inline_ref?.from ?? 0,
             anchorTo: dbThread.inline_ref?.to ?? 0,
             createdAt: dbThread.created_at,
@@ -141,6 +142,7 @@ export function useComments({
       const thread: CommentThread = {
         id: threadId,
         documentId,
+        threadType: "inline",
         anchorFrom: from,
         anchorTo: to,
         createdAt: now,

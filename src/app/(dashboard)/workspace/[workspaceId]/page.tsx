@@ -1,8 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { requireWorkspaceMembership } from '@/lib/supabase/authorization'
 import { Sidebar } from '@/components/layout/sidebar'
-import type { User, Workspace } from '@shared/types'
+import { getWorkspaceLayoutData } from '@/lib/supabase/workspace-data'
 
 interface WorkspacePageProps {
   params: Promise<{ workspaceId: string }>
@@ -10,13 +8,6 @@ interface WorkspacePageProps {
 
 export default async function WorkspacePage({ params }: WorkspacePageProps) {
   const { workspaceId } = await params
-  const supabase = await createClient()
-
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser()
-
-  if (!authUser) redirect('/sign-in')
 
   // Handle "new" workspace route
   if (workspaceId === 'new') {
@@ -32,66 +23,10 @@ export default async function WorkspacePage({ params }: WorkspacePageProps) {
     )
   }
 
-  const { authorized } = await requireWorkspaceMembership(
-    supabase,
-    authUser.id,
-    workspaceId
-  )
-  if (!authorized) redirect('/')
+  const data = await getWorkspaceLayoutData(workspaceId)
+  if (!data) redirect('/sign-in')
 
-  const { data: profile } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', authUser.id)
-    .single()
-
-  const { data: workspace } = await supabase
-    .from('workspaces')
-    .select('*')
-    .eq('id', workspaceId)
-    .single()
-
-  if (!workspace) redirect('/')
-
-  const { data: memberships } = await supabase
-    .from('workspace_members')
-    .select('workspace_id')
-    .eq('user_id', authUser.id)
-
-  const workspaceIds = (memberships ?? []).map(
-    (m: { workspace_id: string }) => m.workspace_id
-  )
-
-  const { data: workspacesData } = await supabase
-    .from('workspaces')
-    .select('*')
-    .in('id', workspaceIds.length > 0 ? workspaceIds : [''])
-    .is('deleted_at', null)
-
-  const workspaces = (workspacesData ?? []) as Workspace[]
-
-  const { data: folders } = await supabase
-    .from('folders')
-    .select('*')
-    .eq('workspace_id', workspaceId)
-    .is('deleted_at', null)
-    .order('position')
-
-  const { data: documents } = await supabase
-    .from('documents')
-    .select('*')
-    .eq('workspace_id', workspaceId)
-    .is('deleted_at', null)
-    .order('position')
-
-  const user: User = profile ?? {
-    id: authUser.id,
-    email: authUser.email ?? '',
-    full_name: null,
-    avatar_url: null,
-    created_at: '',
-    updated_at: '',
-  }
+  const { user, workspace, workspaces, folders, documents } = data
 
   return (
     <div className="flex h-screen">
@@ -99,8 +34,8 @@ export default async function WorkspacePage({ params }: WorkspacePageProps) {
         user={user}
         workspaces={workspaces}
         currentWorkspace={workspace}
-        folders={folders ?? []}
-        documents={documents ?? []}
+        folders={folders}
+        documents={documents}
       />
       <main className="flex-1 overflow-auto p-8">
         <h1 className="text-2xl font-semibold mb-4">{workspace.name}</h1>

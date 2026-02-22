@@ -51,6 +51,23 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient()
 
+  // Validate document_id belongs to agent's workspace if provided
+  if (body.document_id) {
+    const { data: doc } = await admin
+      .from('documents')
+      .select('workspace_id')
+      .eq('id', body.document_id as string)
+      .is('deleted_at', null)
+      .single()
+
+    if (!doc || doc.workspace_id !== agentAuth.agentKey.workspace_id) {
+      return NextResponse.json(
+        { data: null, error: 'document_id not found in workspace' },
+        { status: 400 }
+      )
+    }
+  }
+
   const insertData: Record<string, unknown> = {
     agent_key_id: agentAuth.agentKey.id,
     workspace_id: agentAuth.agentKey.workspace_id,

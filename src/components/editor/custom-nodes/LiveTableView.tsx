@@ -15,13 +15,15 @@ import { Button } from "@/components/ui/button";
 import { ArrowUpDown } from "lucide-react";
 
 export function LiveTableView({ node }: ReactNodeViewProps) {
-  const tableData: LiveTableData = useMemo(
-    () =>
-      JSON.parse(
+  const tableData: LiveTableData = useMemo(() => {
+    try {
+      return JSON.parse(
         (node.attrs.data as string) || '{"columns":[],"rows":[]}'
-      ),
-    [node.attrs.data]
-  );
+      );
+    } catch {
+      return { columns: [], rows: [] };
+    }
+  }, [node.attrs.data]);
 
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");

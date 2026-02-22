@@ -24,6 +24,7 @@ export interface DocumentMeta {
 export interface CommentThread {
   id: string;
   documentId: string;
+  threadType: "inline" | "document";
   resolvedAt?: string;
   resolvedBy?: string;
   createdAt: string;

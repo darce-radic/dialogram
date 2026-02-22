@@ -5,8 +5,14 @@ import { Queue } from 'bullmq'
 
 let publisherQueue: Queue | null = null
 let subscriberQueue: Queue | null = null
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let subscriberClient: any = null
+// The subscriber client is an ioredis instance obtained by duplicating BullMQ's
+// internal connection. Typed loosely because BullMQ doesn't export the Redis type.
+let subscriberClient: {
+  on: (event: string, handler: (...args: string[]) => void) => void
+  subscribe: (channel: string) => Promise<unknown>
+  unsubscribe: (channel: string) => Promise<unknown>
+  duplicate: () => unknown
+} | null = null
 
 // Track channel subscriptions: channel -> Set of callbacks
 const channelListeners = new Map<string, Set<(message: string) => void>>()
@@ -29,7 +35,8 @@ async function getSubscriberClient() {
   }
 
   const baseClient = await subscriberQueue.client
-  subscriberClient = baseClient.duplicate()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  subscriberClient = (baseClient as any).duplicate()
 
   return subscriberClient
 }

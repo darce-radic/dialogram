@@ -37,11 +37,12 @@ export async function authenticateAgent(
   if (!agentKey) return { authenticated: false }
 
   // Update last_used_at (fire-and-forget)
-  admin
-    .from('agent_keys')
-    .update({ last_used_at: new Date().toISOString() })
-    .eq('id', agentKey.id)
-    .then(() => {})
+  Promise.resolve(
+    admin
+      .from('agent_keys')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('id', agentKey.id)
+  ).catch(() => {})
 
   return { authenticated: true, agentKey: agentKey as AgentKey }
 }

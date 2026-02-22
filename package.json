@@ -39,6 +39,8 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "diff": "^8.0.3",
+    "dompurify": "^3.3.1",
+    "isomorphic-dompurify": "^3.0.0",
     "lowlight": "^3.3.0",
     "lucide-react": "^0.575.0",
     "mermaid": "^11.12.3",
@@ -57,6 +59,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/diff": "^7.0.2",
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

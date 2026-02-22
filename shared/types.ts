@@ -485,13 +485,38 @@ export interface Database {
       }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      match_agent_memories: {
+        Args: {
+          query_embedding: number[]
+          match_workspace_id: string
+          match_limit: number
+        }
+        Returns: {
+          id: string
+          agent_key_id: string
+          workspace_id: string
+          document_id: string | null
+          content: string
+          metadata: Record<string, unknown>
+          created_at: string
+          updated_at: string
+          similarity: number
+        }[]
+      }
+      merge_document_branch: {
+        Args: {
+          p_branch_id: string
+          p_source_document_id: string
+          p_merged_by: string
+        }
+        Returns: string
+      }
+    }
     Enums: {
       workspace_role: WorkspaceRole
       thread_type: ThreadType
       agent_role: AgentRole
-      scratchpad_event_type: ScratchpadEventType
-      branch_status: BranchStatus
     }
     CompositeTypes: Record<string, never>
   }

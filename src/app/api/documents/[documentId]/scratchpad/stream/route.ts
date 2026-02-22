@@ -7,7 +7,7 @@ interface RouteContext {
   params: Promise<{ documentId: string }>
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const { documentId } = await context.params
   const supabase = await createClient()
 
@@ -103,7 +103,7 @@ export async function GET(_request: Request, context: RouteContext) {
       }, 30000)
 
       // Cleanup when client disconnects
-      _request.signal.addEventListener('abort', () => {
+      request.signal.addEventListener('abort', () => {
         clearInterval(heartbeat)
         if (unsubscribe) unsubscribe()
       })

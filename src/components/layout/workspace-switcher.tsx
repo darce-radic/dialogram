@@ -21,7 +21,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createClient } from '@/lib/supabase/client'
 import type { Workspace } from '@shared/types'
 
 interface WorkspaceSwitcherProps {
@@ -45,35 +44,22 @@ export function WorkspaceSwitcher({
     if (!newName.trim()) return
     setCreating(true)
 
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) return
-
-    const slug = newName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-
-    const { data: workspace, error } = await supabase
-      .from('workspaces')
-      .insert({ name: newName.trim(), slug, owner_id: user.id })
-      .select()
-      .single()
-
-    if (!error && workspace) {
-      await supabase.from('workspace_members').insert({
-        workspace_id: workspace.id,
-        user_id: user.id,
-        role: 'owner',
+    try {
+      const res = await fetch('/api/workspaces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim() }),
       })
+      const { data: workspace } = await res.json()
 
-      setShowCreate(false)
-      setNewName('')
-      router.push(`/workspace/${workspace.id}`)
-      router.refresh()
+      if (workspace) {
+        setShowCreate(false)
+        setNewName('')
+        router.push(`/workspace/${workspace.id}`)
+        router.refresh()
+      }
+    } catch {
+      // Silently handle network errors
     }
 
     setCreating(false)

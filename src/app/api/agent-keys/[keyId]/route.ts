@@ -50,7 +50,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     )
   }
 
-  const body = await request.json()
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json(
+      { data: null, error: 'Invalid JSON body' },
+      { status: 400 }
+    )
+  }
 
   const updateData: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
