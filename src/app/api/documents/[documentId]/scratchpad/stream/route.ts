@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireWorkspaceMembership } from '@/lib/supabase/authorization'
-import { Queue } from 'bullmq'
+import { subscribeScratchpad } from '@/lib/queue/redis-pubsub'
 
 interface RouteContext {
   params: Promise<{ documentId: string }>
@@ -48,9 +48,6 @@ export async function GET(_request: Request, context: RouteContext) {
     })
   }
 
-  const redisUrl = process.env.REDIS_URL
-  const channel = `scratchpad:${documentId}`
-
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder()
@@ -77,18 +74,12 @@ export async function GET(_request: Request, context: RouteContext) {
         // Backfill failure is non-fatal
       }
 
-      // Subscribe to Redis pub/sub if available
-      if (redisUrl) {
-        try {
-          // Create a dedicated subscriber queue to access Redis
-          const subQueue = new Queue('scratchpad-sub-' + documentId, {
-            connection: { url: redisUrl },
-          })
-          const client = await subQueue.client
-          const subscriber = client.duplicate()
-          await subscriber.subscribe(channel)
-
-          subscriber.on('message', (_ch: string, message: string) => {
+      // Subscribe via shared Redis pub/sub connection (not per-SSE-client)
+      let unsubscribe: (() => void) | null = null
+      try {
+        unsubscribe = await subscribeScratchpad(
+          documentId,
+          (message: string) => {
             try {
               controller.enqueue(
                 encoder.encode(`data: ${message}\n\n`)
@@ -96,28 +87,26 @@ export async function GET(_request: Request, context: RouteContext) {
             } catch {
               // Stream closed
             }
-          })
-
-          // Heartbeat every 30s to keep connection alive
-          const heartbeat = setInterval(() => {
-            try {
-              controller.enqueue(encoder.encode(': heartbeat\n\n'))
-            } catch {
-              clearInterval(heartbeat)
-            }
-          }, 30000)
-
-          // Cleanup when client disconnects
-          _request.signal.addEventListener('abort', () => {
-            clearInterval(heartbeat)
-            subscriber.unsubscribe(channel).catch(() => {})
-            subscriber.disconnect()
-            subQueue.close().catch(() => {})
-          })
-        } catch {
-          // Redis unavailable — SSE still works with backfill only
-        }
+          }
+        )
+      } catch {
+        // Redis unavailable — SSE still works with backfill only
       }
+
+      // Heartbeat every 30s to keep connection alive
+      const heartbeat = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(': heartbeat\n\n'))
+        } catch {
+          clearInterval(heartbeat)
+        }
+      }, 30000)
+
+      // Cleanup when client disconnects
+      _request.signal.addEventListener('abort', () => {
+        clearInterval(heartbeat)
+        if (unsubscribe) unsubscribe()
+      })
 
       // Send initial connection event
       controller.enqueue(

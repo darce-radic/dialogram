@@ -13,7 +13,15 @@ export async function POST(request: Request) {
     )
   }
 
-  const body = await request.json()
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json(
+      { data: null, error: 'Invalid JSON body' },
+      { status: 400 }
+    )
+  }
 
   if (!body.embedding || !Array.isArray(body.embedding)) {
     return NextResponse.json(
@@ -22,30 +30,35 @@ export async function POST(request: Request) {
     )
   }
 
-  const limit = body.limit ?? 10
-  const admin = createAdminClient()
-
-  // Use pgvector cosine similarity search via raw SQL
-  const embeddingStr = `[${body.embedding.join(',')}]`
-
-  let sql = `
-    SELECT *, 1 - (embedding <=> '${embeddingStr}'::vector) AS similarity
-    FROM public.agent_memories
-    WHERE workspace_id = '${agentAuth.agentKey.workspace_id}'
-      AND embedding IS NOT NULL
-  `
-
-  if (body.document_id) {
-    sql += ` AND document_id = '${body.document_id}'`
+  // Validate embedding dimensions and contents
+  if (
+    body.embedding.length !== 1536 ||
+    !body.embedding.every(
+      (v: unknown) => typeof v === 'number' && Number.isFinite(v)
+    )
+  ) {
+    return NextResponse.json(
+      { data: null, error: 'embedding must be an array of 1536 finite numbers' },
+      { status: 400 }
+    )
   }
 
-  sql += ` ORDER BY embedding <=> '${embeddingStr}'::vector LIMIT ${limit}`
+  const limit = Math.min(
+    Math.max(1, parseInt(String(body.limit ?? 10), 10) || 10),
+    200
+  )
+  const admin = createAdminClient()
 
-  const { data, error } = await admin.rpc('exec_sql', { query: sql })
+  // Use parameterized RPC to avoid SQL injection
+  const { data, error } = await admin.rpc('match_agent_memories', {
+    query_embedding: JSON.stringify(body.embedding),
+    match_workspace_id: agentAuth.agentKey.workspace_id,
+    match_document_id: body.document_id ?? null,
+    match_limit: limit,
+  })
 
-  // Fallback: if the RPC doesn't exist, use a simpler approach
+  // Fallback: if the RPC doesn't exist yet, use a simpler approach without similarity
   if (error) {
-    // Try direct query without similarity score
     let query = admin
       .from('agent_memories')
       .select('*')
@@ -53,7 +66,7 @@ export async function POST(request: Request) {
       .not('embedding', 'is', null)
       .limit(limit)
 
-    if (body.document_id) {
+    if (body.document_id && typeof body.document_id === 'string') {
       query = query.eq('document_id', body.document_id)
     }
 

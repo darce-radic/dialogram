@@ -55,21 +55,36 @@ export async function POST(request: Request, context: RouteContext) {
     )
   }
 
-  const body = await request.json()
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json(
+      { data: null, error: 'Invalid JSON body' },
+      { status: 400 }
+    )
+  }
 
-  if (!body.content) {
+  if (!body.content || typeof body.content !== 'string') {
     return NextResponse.json(
       { data: null, error: 'content is required' },
       { status: 400 }
     )
   }
 
+  const validEventTypes = ['thinking', 'tool_use', 'progress', 'error']
+  const eventType =
+    typeof body.event_type === 'string' &&
+    validEventTypes.includes(body.event_type)
+      ? body.event_type
+      : 'thinking'
+
   const { data, error } = await admin
     .from('scratchpad_events')
     .insert({
       document_id: documentId,
       agent_key_id: agentAuth.agentKey.id,
-      event_type: body.event_type ?? 'thinking',
+      event_type: eventType,
       content: body.content,
       metadata: body.metadata ?? {},
     })

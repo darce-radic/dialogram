@@ -53,11 +53,12 @@ const server = new Server(
         }
 
         // Update last_used_at (fire-and-forget)
-        supabase
-          .from("agent_keys")
-          .update({ last_used_at: new Date().toISOString() })
-          .eq("id", agentKey.id)
-          .then(() => {});
+        Promise.resolve(
+          supabase
+            .from("agent_keys")
+            .update({ last_used_at: new Date().toISOString() })
+            .eq("id", agentKey.id)
+        ).catch(() => {});
 
         return {
           user: {

@@ -14,6 +14,7 @@ interface UseCollaborationOptions {
   user: User;
   serverUrl: string;
   token?: string;
+  enabled?: boolean;
 }
 
 interface UseCollaborationReturn {
@@ -27,7 +28,7 @@ interface UseCollaborationReturn {
 export function useCollaboration(
   options: UseCollaborationOptions
 ): UseCollaborationReturn {
-  const { documentId, workspaceId, user, serverUrl, token } = options;
+  const { documentId, workspaceId, user, serverUrl, token, enabled = true } = options;
   const [connectedUsers, setConnectedUsers] = useState<CollaborationUser[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isSynced, setIsSynced] = useState(false);
@@ -37,6 +38,8 @@ export function useCollaboration(
   const ydoc = useMemo(() => new Y.Doc(), [documentId]);
 
   useEffect(() => {
+    if (!enabled || !serverUrl) return;
+
     const provider = createCollaborationProvider({
       documentId,
       workspaceId,
@@ -76,7 +79,7 @@ export function useCollaboration(
       providerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [documentId, workspaceId, user.id, serverUrl, token]);
+  }, [documentId, workspaceId, user.id, serverUrl, token, enabled]);
 
   return {
     ydoc,

@@ -126,9 +126,17 @@ export async function PATCH(request: Request, context: RouteContext) {
     )
   }
 
-  const body = await request.json()
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json(
+      { data: null, error: 'Invalid JSON body' },
+      { status: 400 }
+    )
+  }
 
-  if (!body.status || !['merged', 'rejected'].includes(body.status)) {
+  if (!body.status || !['merged', 'rejected'].includes(body.status as string)) {
     return NextResponse.json(
       { data: null, error: "status must be 'merged' or 'rejected'" },
       { status: 400 }

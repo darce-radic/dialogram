@@ -169,11 +169,11 @@
 
 /* Mention chip styles */
 .mention {
-  background-color: hsl(var(--primary) / 0.1);
+  background-color: color-mix(in oklch, var(--primary) 10%, transparent);
   border-radius: 0.25rem;
   padding: 0.125rem 0.25rem;
   font-weight: 500;
-  color: hsl(var(--primary));
+  color: var(--primary);
   box-decoration-break: clone;
 }
 

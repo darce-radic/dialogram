@@ -103,33 +103,32 @@ export function Editor({
     [workspaceMembers]
   );
 
-  const collaboration = collaborationUrl
-    ? // eslint-disable-next-line react-hooks/rules-of-hooks
-      useCollaboration({
-        documentId,
-        workspaceId,
-        user,
-        serverUrl: collaborationUrl,
-        token,
-      })
-    : null;
+  const collaboration = useCollaboration({
+    documentId,
+    workspaceId,
+    user,
+    serverUrl: collaborationUrl ?? "",
+    token,
+    enabled: !!collaborationUrl,
+  });
+
+  const isCollabActive = !!collaborationUrl && !!collaboration.provider;
 
   const editor = useEditorInstance({
-    content: collaboration ? undefined : "<p>Start writing...</p>",
-    collaboration:
-      collaboration?.provider
-        ? {
-            ydoc: collaboration.ydoc,
-            provider: collaboration.provider,
-            user: { name: user.name, color: getColorForUser(user.id) },
-          }
-        : undefined,
+    content: collaborationUrl ? undefined : "<p>Start writing...</p>",
+    collaboration: isCollabActive
+      ? {
+          ydoc: collaboration.ydoc,
+          provider: collaboration.provider!,
+          user: { name: user.name, color: getColorForUser(user.id) },
+        }
+      : undefined,
     additionalExtensions: [CommentMark, mentionExtension],
   });
 
   const comments = useComments({
     editor,
-    ydoc: collaboration?.ydoc ?? null,
+    ydoc: collaborationUrl ? collaboration.ydoc : null,
     documentId,
   });
 
@@ -232,13 +231,13 @@ export function Editor({
             >
               <GitBranch className="h-4 w-4" />
             </Button>
-            {collaboration && (
+            {isCollabActive && (
               <CursorPresence
                 isConnected={collaboration.isConnected}
                 isSynced={collaboration.isSynced}
               />
             )}
-            {collaboration && (
+            {isCollabActive && (
               <ActiveUsers users={collaboration.connectedUsers} />
             )}
           </div>

@@ -13,13 +13,40 @@ export async function POST(request: Request) {
     )
   }
 
-  const body = await request.json()
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json(
+      { data: null, error: 'Invalid JSON body' },
+      { status: 400 }
+    )
+  }
 
-  if (!body.content) {
+  if (!body.content || typeof body.content !== 'string') {
     return NextResponse.json(
       { data: null, error: 'content is required' },
       { status: 400 }
     )
+  }
+
+  // Validate embedding if provided
+  if (body.embedding != null) {
+    if (
+      !Array.isArray(body.embedding) ||
+      body.embedding.length !== 1536 ||
+      !body.embedding.every(
+        (v: unknown) => typeof v === 'number' && Number.isFinite(v)
+      )
+    ) {
+      return NextResponse.json(
+        {
+          data: null,
+          error: 'embedding must be an array of 1536 finite numbers',
+        },
+        { status: 400 }
+      )
+    }
   }
 
   const admin = createAdminClient()
@@ -68,7 +95,10 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const documentId = searchParams.get('document_id')
-  const limit = parseInt(searchParams.get('limit') ?? '50', 10)
+  const limit = Math.min(
+    Math.max(1, parseInt(searchParams.get('limit') ?? '50', 10) || 50),
+    200
+  )
 
   const admin = createAdminClient()
 

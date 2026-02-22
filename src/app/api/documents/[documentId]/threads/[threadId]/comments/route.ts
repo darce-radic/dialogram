@@ -61,7 +61,15 @@ export async function POST(request: Request, context: RouteContext) {
       )
     }
 
-    const body = await request.json()
+    let body: Record<string, unknown>
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { data: null, error: 'Invalid JSON body' },
+        { status: 400 }
+      )
+    }
 
     if (!body.content) {
       return NextResponse.json(
