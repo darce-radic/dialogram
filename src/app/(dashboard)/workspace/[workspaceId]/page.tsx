@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
+import { CreateWorkspaceForm } from '@/components/workspace/create-workspace-form'
 import { getWorkspaceLayoutData } from '@/lib/supabase/workspace-data'
 
 interface WorkspacePageProps {
@@ -13,11 +14,14 @@ export default async function WorkspacePage({ params }: WorkspacePageProps) {
   if (workspaceId === 'new') {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center space-y-4">
-          <h1 className="text-2xl font-semibold">Welcome to Dialogram</h1>
-          <p className="text-muted-foreground">
-            Create your first workspace to get started.
-          </p>
+        <div className="flex flex-col items-center space-y-6">
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl font-semibold">Welcome to Dialogram</h1>
+            <p className="text-muted-foreground">
+              Create your first workspace to get started.
+            </p>
+          </div>
+          <CreateWorkspaceForm />
         </div>
       </div>
     )
