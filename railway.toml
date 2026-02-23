@@ -3,8 +3,6 @@ builder = "nixpacks"
 buildCommand = "npm run build"
 
 [deploy]
-startCommand = "npm start"
-healthcheckPath = "/"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
