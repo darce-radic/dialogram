@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -44,8 +45,11 @@ export async function POST(request: Request) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
 
-  // Create workspace and add owner in a single transaction-like operation
-  const { data: workspace, error: wsError } = await supabase
+  // Use admin client to bypass RLS for the atomic bootstrap operation
+  // (create workspace + add owner as first member)
+  const admin = createAdminClient()
+
+  const { data: workspace, error: wsError } = await admin
     .from('workspaces')
     .insert({ name, slug, owner_id: user.id })
     .select()
@@ -58,7 +62,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const { error: memberError } = await supabase
+  const { error: memberError } = await admin
     .from('workspace_members')
     .insert({
       workspace_id: workspace.id,
@@ -68,7 +72,7 @@ export async function POST(request: Request) {
 
   if (memberError) {
     // Clean up the orphaned workspace
-    await supabase.from('workspaces').delete().eq('id', workspace.id)
+    await admin.from('workspaces').delete().eq('id', workspace.id)
     return NextResponse.json(
       { data: null, error: memberError.message },
       { status: 500 }
