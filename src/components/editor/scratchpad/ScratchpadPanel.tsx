@@ -19,6 +19,15 @@ const eventIcons: Record<string, React.ElementType> = {
   error: AlertCircle,
 };
 
+const stateLabels: Record<string, string> = {
+  received: "Received",
+  analyzing: "Analyzing",
+  drafting: "Drafting",
+  waiting_for_approval: "Waiting approval",
+  applied: "Applied",
+  failed: "Failed",
+};
+
 export function ScratchpadPanel({
   events,
   isConnected,
@@ -53,6 +62,19 @@ export function ScratchpadPanel({
           const Icon = eventIcons[event.event_type] ?? Brain;
           const agentName =
             agentNames?.[event.agent_key_id] ?? "Agent";
+          const metadata =
+            event.metadata && typeof event.metadata === "object"
+              ? (event.metadata as Record<string, unknown>)
+              : {};
+          const lifecycleState =
+            typeof metadata.lifecycle_state === "string"
+              ? metadata.lifecycle_state
+              : undefined;
+          const communication =
+            metadata.communication &&
+            typeof metadata.communication === "object"
+              ? (metadata.communication as Record<string, unknown>)
+              : null;
 
           return (
             <div
@@ -72,6 +94,11 @@ export function ScratchpadPanel({
                   )}
                 />
                 <span className="text-xs font-medium">{agentName}</span>
+                {lifecycleState && (
+                  <span className="text-[10px] uppercase tracking-wide rounded bg-muted px-1.5 py-0.5">
+                    {stateLabels[lifecycleState] ?? lifecycleState}
+                  </span>
+                )}
                 <span className="text-xs text-muted-foreground ml-auto">
                   {new Date(event.created_at).toLocaleTimeString()}
                 </span>
@@ -84,6 +111,11 @@ export function ScratchpadPanel({
               >
                 {event.content}
               </p>
+              {communication && typeof communication.intent === "string" && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Intent: {communication.intent}
+                </p>
+              )}
             </div>
           );
         })}

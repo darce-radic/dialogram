@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useEditorInstance } from "@/lib/editor/hooks/use-editor";
 import { useCollaboration } from "@/lib/editor/hooks/use-collaboration";
 import { useComments } from "@/lib/editor/hooks/use-comments";
@@ -24,8 +24,10 @@ import { createMentionSuggestion } from "@/lib/editor/extensions/mention-suggest
 import type { MentionUser } from "@/components/editor/mentions/MentionList";
 import type { User } from "@/shared/editor-types";
 import type { DocumentBranch } from "@shared/types";
+import { toast } from "sonner";
 
 type RightPanel = "comments" | "scratchpad" | "branches" | "branch-diff" | null;
+type SaveStatus = "idle" | "saving" | "saved" | "proposed" | "error";
 
 interface EditorProps {
   documentId: string;
@@ -42,7 +44,7 @@ export function Editor({
   collaborationUrl,
   token,
 }: EditorProps) {
-  const [workspaceMembers, setWorkspaceMembers] = useState<MentionUser[]>([]);
+  const [mentionUsers, setMentionUsers] = useState<MentionUser[]>([]);
   const [agentNames, setAgentNames] = useState<Record<string, string>>({});
   const [activePanel, setActivePanel] = useState<RightPanel>("comments");
   const [branches, setBranches] = useState<DocumentBranch[]>([]);
@@ -51,34 +53,51 @@ export function Editor({
     sourceContent: string;
     branchContent: string;
   } | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isSavingRef = useRef(false);
+  const lastSavedContentRef = useRef<string>("");
+  const saveStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    fetch(`/api/workspaces/${workspaceId}/members`)
-      .then((res) => res.json())
-      .then(({ data }) => {
-        if (data && Array.isArray(data)) {
-          setWorkspaceMembers(
-            data.map((m: Record<string, unknown>) => ({
+    Promise.all([
+      fetch(`/api/workspaces/${workspaceId}/members`).then((res) => res.json()),
+      fetch(`/api/agent-keys/names?workspaceId=${workspaceId}`).then((res) =>
+        res.json()
+      ),
+    ])
+      .then(([membersRes, agentsRes]) => {
+        const humanUsers: MentionUser[] = Array.isArray(membersRes?.data)
+          ? membersRes.data.map((m: Record<string, unknown>) => ({
               id: m.id as string,
               name: (m.full_name as string) || (m.email as string) || "Unknown",
               email: (m.email as string) || "",
               avatarUrl: m.avatar_url as string | undefined,
+              type: "human" as const,
             }))
-          );
-        }
-      })
-      .catch(() => {});
+          : [];
 
-    fetch(`/api/agent-keys/names?workspaceId=${workspaceId}`)
-      .then((res) => res.json())
-      .then(({ data }) => {
-        if (data && Array.isArray(data)) {
-          const map: Record<string, string> = {};
-          for (const agent of data) {
-            map[agent.id] = agent.name;
+        const agents: MentionUser[] = Array.isArray(agentsRes?.data)
+          ? agentsRes.data.map((agent: Record<string, unknown>) => ({
+              id: agent.id as string,
+              name: (agent.name as string) || "Agent",
+              email: "",
+              type: "agent" as const,
+              subtitle:
+                typeof agent.role === "string"
+                  ? `${agent.role} agent`
+                  : "agent",
+            }))
+          : [];
+
+        const map: Record<string, string> = {};
+        for (const agent of agentsRes?.data ?? []) {
+          if (agent.id && agent.name) {
+            map[agent.id as string] = agent.name as string;
           }
-          setAgentNames(map);
         }
+        setAgentNames(map);
+        setMentionUsers([...humanUsers, ...agents]);
       })
       .catch(() => {});
   }, [workspaceId]);
@@ -99,9 +118,9 @@ export function Editor({
     () =>
       Mention.configure({
         HTMLAttributes: { class: "mention" },
-        suggestion: createMentionSuggestion(workspaceMembers),
+        suggestion: createMentionSuggestion(mentionUsers),
       }),
-    [workspaceMembers]
+    [mentionUsers]
   );
 
   const collaboration = useCollaboration({
@@ -115,6 +134,65 @@ export function Editor({
 
   const isCollabActive = !!collaborationUrl && !!collaboration.provider;
 
+  const handleSave = useCallback(
+    async (content: Record<string, unknown>) => {
+      if (isCollabActive || isSavingRef.current) return;
+
+      const serialized = JSON.stringify(content);
+      if (serialized === lastSavedContentRef.current) return;
+
+      isSavingRef.current = true;
+      setSaveStatus("saving");
+      try {
+        const response = await fetch(`/api/documents/${documentId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+          toast.error(payload?.error ?? "Failed to save document");
+          setSaveStatus("error");
+          return;
+        }
+
+        const mode = payload?.data?.mode;
+        if (mode === "branch_proposal") {
+          toast.info("Changes proposed as branch.", {
+            action: {
+              label: "Open branches",
+              onClick: () => setActivePanel("branches"),
+            },
+          });
+          setActivePanel("branches");
+          setSaveStatus("proposed");
+          const branch = payload?.data?.branch;
+          if (branch?.id) {
+            setBranches((prev) => {
+              if (prev.some((b) => b.id === branch.id)) return prev;
+              return [branch as DocumentBranch, ...prev];
+            });
+          }
+        } else {
+          setSaveStatus("saved");
+        }
+
+        lastSavedContentRef.current = serialized;
+      } catch {
+        toast.error("Network error while saving document");
+        setSaveStatus("error");
+      } finally {
+        isSavingRef.current = false;
+        if (saveStatusTimeoutRef.current) clearTimeout(saveStatusTimeoutRef.current);
+        saveStatusTimeoutRef.current = setTimeout(() => {
+          setSaveStatus("idle");
+        }, 2500);
+      }
+    },
+    [documentId, isCollabActive]
+  );
+
   const editor = useEditorInstance({
     content: collaborationUrl ? undefined : "<p>Start writing...</p>",
     collaboration: isCollabActive
@@ -124,13 +202,29 @@ export function Editor({
           user: { name: user.name, color: getColorForUser(user.id) },
         }
       : undefined,
+    onUpdate: ({ editor: editorInstance }) => {
+      if (isCollabActive) return;
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      setSaveStatus("saving");
+      saveTimeoutRef.current = setTimeout(() => {
+        void handleSave(editorInstance.getJSON());
+      }, 1200);
+    },
     additionalExtensions: [CommentMark, mentionExtension],
   });
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      if (saveStatusTimeoutRef.current) clearTimeout(saveStatusTimeoutRef.current);
+    };
+  }, []);
 
   const comments = useComments({
     editor,
     ydoc: collaborationUrl ? collaboration.ydoc : null,
     documentId,
+    mentionDirectory: mentionUsers,
   });
 
   const scratchpad = useScratchpad(documentId);
@@ -233,6 +327,23 @@ export function Editor({
             >
               <GitBranch className="h-4 w-4" />
             </Button>
+            {!isCollabActive && saveStatus !== "idle" && (
+              <span className="text-xs text-muted-foreground rounded border px-2 py-1">
+                {saveStatus === "saving" && "Saving..."}
+                {saveStatus === "saved" && "Saved"}
+                {saveStatus === "proposed" && "Proposed"}
+                {saveStatus === "error" && "Error"}
+              </span>
+            )}
+            {isCollabActive && (
+              <span className="text-xs text-muted-foreground rounded border px-2 py-1">
+                {!collaboration.isConnected
+                  ? "Offline"
+                  : collaboration.isSynced
+                    ? "Live"
+                    : "Syncing..."}
+              </span>
+            )}
             {isCollabActive && (
               <CursorPresence
                 isConnected={collaboration.isConnected}

@@ -31,8 +31,14 @@ export async function updateSession(request: NextRequest) {
 
   if (
     !user &&
+    request.nextUrl.pathname !== '/' &&
+    !request.nextUrl.pathname.startsWith('/pricing') &&
+    !request.nextUrl.pathname.startsWith('/contact-sales') &&
+    !request.nextUrl.pathname.startsWith('/security') &&
+    !request.nextUrl.pathname.startsWith('/data-policy') &&
     !request.nextUrl.pathname.startsWith('/sign-in') &&
     !request.nextUrl.pathname.startsWith('/sign-up') &&
+    !request.nextUrl.pathname.startsWith('/help') &&
     !request.nextUrl.pathname.startsWith('/auth') &&
     !request.nextUrl.pathname.startsWith('/api')
   ) {

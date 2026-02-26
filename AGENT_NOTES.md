@@ -1,4 +1,11 @@
-# @Foundation Notes — 2026-02-23
+---
+project_id: dlgprj_38fe09061632550a
+note_type: handoff
+scope: repo
+updated_at: 2026-02-23
+owner: @Foundation
+---
+# @Foundation Notes â€” 2026-02-23
 
 ## Completed
 
@@ -37,8 +44,8 @@ NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_APP_URL
-NEXT_PUBLIC_HOCUSPOCUS_URL        # optional — leave empty for local-only editing
-REDIS_URL                         # optional — leave empty to skip webhook queue
+NEXT_PUBLIC_HOCUSPOCUS_URL        # optional â€” leave empty for local-only editing
+REDIS_URL                         # optional â€” leave empty to skip webhook queue
 WEBHOOK_SIGNING_SECRET            # required for webhook worker
 DATABASE_URL                      # Supabase pooler connection string
 ```
@@ -54,11 +61,11 @@ DATABASE_URL                      # Supabase pooler connection string
 
 ## Comment API
 
-- `GET /api/documents/[documentId]/threads` — list all threads with comments
-- `POST /api/documents/[documentId]/threads` — create thread + initial comment
-- `PATCH /api/documents/[documentId]/threads/[threadId]` — resolve/unresolve
-- `DELETE /api/documents/[documentId]/threads/[threadId]` — delete thread (cascades)
-- `POST /api/documents/[documentId]/threads/[threadId]/comments` — add reply
+- `GET /api/documents/[documentId]/threads` â€” list all threads with comments
+- `POST /api/documents/[documentId]/threads` â€” create thread + initial comment
+- `PATCH /api/documents/[documentId]/threads/[threadId]` â€” resolve/unresolve
+- `DELETE /api/documents/[documentId]/threads/[threadId]` â€” delete thread (cascades)
+- `POST /api/documents/[documentId]/threads/[threadId]/comments` â€” add reply
 
 ## Notes for Other Agents
 
@@ -72,15 +79,15 @@ DATABASE_URL                      # Supabase pooler connection string
 
 ```
 Railway Project
-├── Service: web (Next.js)       → railway.toml
-├── Service: hocuspocus (WS)     → server/hocuspocus/railway.toml
-├── Service: worker (BullMQ)     → server/worker/railway.toml
-└── Service: redis (managed)
+â”œâ”€â”€ Service: web (Next.js)       â†’ railway.toml
+â”œâ”€â”€ Service: hocuspocus (WS)     â†’ server/hocuspocus/railway.toml
+â”œâ”€â”€ Service: worker (BullMQ)     â†’ server/worker/railway.toml
+â””â”€â”€ Service: redis (managed)
 ```
 
 - Scripts: `npm run dev:hocuspocus`, `npm run dev:worker`
 - Server code uses `tsconfig.server.json` (ES2022, Node target)
-- BullMQ bundles its own ioredis — do NOT add a separate ioredis dependency
+- BullMQ bundles its own ioredis â€” do NOT add a separate ioredis dependency
 
 ## Next
 

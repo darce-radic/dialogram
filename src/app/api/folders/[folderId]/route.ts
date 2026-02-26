@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireWorkspaceMembership } from '@/lib/supabase/authorization'
+import { applyRouteRateLimit } from '@/lib/security/rate-limit'
 
 interface RouteContext {
   params: Promise<{ folderId: string }>
@@ -51,6 +52,13 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const rateLimited = applyRouteRateLimit(request, {
+    scope: 'folders.update',
+    limit: 60,
+    windowMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   const { folderId } = await context.params
   const supabase = await createClient()
 
@@ -128,7 +136,14 @@ export async function PATCH(request: Request, context: RouteContext) {
   return NextResponse.json({ data, error: null })
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export async function DELETE(request: Request, context: RouteContext) {
+  const rateLimited = applyRouteRateLimit(request, {
+    scope: 'folders.delete',
+    limit: 30,
+    windowMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   const { folderId } = await context.params
   const supabase = await createClient()
 

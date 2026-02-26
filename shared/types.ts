@@ -91,6 +91,7 @@ export interface Comment {
   document_id: string
   author_id: string
   body: string
+  metadata: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }
@@ -355,6 +356,7 @@ export interface Database {
           document_id: string
           author_id: string
           body: string
+          metadata?: Record<string, unknown> | null
           created_at?: string
           updated_at?: string
         }
@@ -364,6 +366,7 @@ export interface Database {
           document_id?: string
           author_id?: string
           body?: string
+          metadata?: Record<string, unknown> | null
           created_at?: string
           updated_at?: string
         }

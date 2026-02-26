@@ -3,12 +3,19 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { Editor } from "@tiptap/react";
 import type { CommentThread } from "@/shared/editor-types";
+import type { MentionUser } from "@/components/editor/mentions/MentionList";
+import {
+  extractMentionsFromSelection,
+  extractMentionsFromText,
+  type MentionTarget,
+} from "@/lib/editor/utils/mention-extractor";
 import * as Y from "yjs";
 
 interface UseCommentsOptions {
   editor: Editor | null;
   ydoc: Y.Doc | null;
   documentId: string;
+  mentionDirectory?: MentionUser[];
 }
 
 interface UseCommentsReturn {
@@ -23,7 +30,8 @@ interface UseCommentsReturn {
 // Fire-and-forget API persistence (best-effort, Yjs is source of truth for real-time)
 function persistThread(
   documentId: string,
-  thread: CommentThread
+  thread: CommentThread,
+  mentions: MentionTarget[]
 ) {
   fetch(`/api/documents/${documentId}/threads`, {
     method: "POST",
@@ -34,6 +42,7 @@ function persistThread(
       inline_ref: { from: thread.anchorFrom, to: thread.anchorTo },
       content: thread.comments[0]?.content ?? "",
       comment_id: thread.comments[0]?.id,
+      mentions,
     }),
   }).catch(() => {});
 }
@@ -42,12 +51,13 @@ function persistReply(
   documentId: string,
   threadId: string,
   commentId: string,
-  content: string
+  content: string,
+  mentions: MentionTarget[]
 ) {
   fetch(`/api/documents/${documentId}/threads/${threadId}/comments`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: commentId, content }),
+    body: JSON.stringify({ id: commentId, content, mentions }),
   }).catch(() => {});
 }
 
@@ -63,6 +73,7 @@ export function useComments({
   editor,
   ydoc,
   documentId,
+  mentionDirectory = [],
 }: UseCommentsOptions): UseCommentsReturn {
   const [threads, setThreads] = useState<CommentThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -99,6 +110,9 @@ export function useComments({
                 threadId: c.thread_id,
                 authorId: c.author_id,
                 content: c.body,
+                metadata:
+                  (c.metadata as Record<string, unknown> | undefined) ??
+                  undefined,
                 createdAt: c.created_at,
                 updatedAt: c.updated_at ?? undefined,
               })
@@ -157,6 +171,7 @@ export function useComments({
           },
         ],
       };
+      const mentions = extractMentionsFromSelection(editor, from, to);
 
       editor.chain().focus().setComment(threadId).run();
 
@@ -164,7 +179,7 @@ export function useComments({
       yThreads.set(threadId, thread);
 
       // Persist to DB
-      persistThread(documentId, thread);
+      persistThread(documentId, thread, mentions);
 
       setActiveThreadId(threadId);
       return thread;
@@ -194,13 +209,14 @@ export function useComments({
           },
         ],
       };
+      const mentions = extractMentionsFromText(content, mentionDirectory);
 
       yThreads.set(threadId, updatedThread);
 
       // Persist to DB
-      persistReply(documentId, threadId, commentId, content);
+      persistReply(documentId, threadId, commentId, content, mentions);
     },
-    [ydoc, documentId]
+    [ydoc, documentId, mentionDirectory]
   );
 
   const resolveThread = useCallback(

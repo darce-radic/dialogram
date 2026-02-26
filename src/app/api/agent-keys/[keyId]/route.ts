@@ -2,12 +2,21 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireWorkspaceMembership } from '@/lib/supabase/authorization'
+import { validateWebhookUrl } from '@/lib/agents/webhook-url'
+import { applyRouteRateLimit } from '@/lib/security/rate-limit'
 
 interface RouteContext {
   params: Promise<{ keyId: string }>
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const rateLimited = applyRouteRateLimit(request, {
+    scope: 'agent-keys.update',
+    limit: 30,
+    windowMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   const { keyId } = await context.params
   const supabase = await createClient()
 
@@ -68,7 +77,16 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.role !== undefined) updateData.role = body.role
   if (body.is_active !== undefined) updateData.is_active = body.is_active
   if (body.permissions !== undefined) updateData.permissions = body.permissions
-  if (body.webhook_url !== undefined) updateData.webhook_url = body.webhook_url
+  if (body.webhook_url !== undefined) {
+    const webhookUrlValidation = validateWebhookUrl(body.webhook_url)
+    if (!webhookUrlValidation.ok) {
+      return NextResponse.json(
+        { data: null, error: webhookUrlValidation.error },
+        { status: 400 }
+      )
+    }
+    updateData.webhook_url = webhookUrlValidation.value
+  }
 
   const { data, error } = await admin
     .from('agent_keys')
@@ -89,7 +107,14 @@ export async function PATCH(request: Request, context: RouteContext) {
   return NextResponse.json({ data, error: null })
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export async function DELETE(request: Request, context: RouteContext) {
+  const rateLimited = applyRouteRateLimit(request, {
+    scope: 'agent-keys.delete',
+    limit: 20,
+    windowMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   const { keyId } = await context.params
   const supabase = await createClient()
 

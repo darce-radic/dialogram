@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireWorkspaceMembership } from '@/lib/supabase/authorization'
+import { applyRouteRateLimit } from '@/lib/security/rate-limit'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -65,6 +66,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const rateLimited = applyRouteRateLimit(request, {
+    scope: 'documents.create',
+    limit: 60,
+    windowMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   const supabase = await createClient()
   const {
     data: { user },

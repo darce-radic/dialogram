@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireWorkspaceMembership } from '@/lib/supabase/authorization'
+import { validateWebhookUrl } from '@/lib/agents/webhook-url'
+import { applyRouteRateLimit } from '@/lib/security/rate-limit'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -64,6 +66,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const rateLimited = applyRouteRateLimit(request, {
+    scope: 'agent-keys.create',
+    limit: 20,
+    windowMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   const supabase = await createClient()
   const {
     data: { user },
@@ -113,6 +122,13 @@ export async function POST(request: Request) {
 
   // Generate webhook signing secret
   const webhookSecret = randomBytes(32).toString('hex')
+  const webhookUrlValidation = validateWebhookUrl(body.webhook_url)
+  if (!webhookUrlValidation.ok) {
+    return NextResponse.json(
+      { data: null, error: webhookUrlValidation.error },
+      { status: 400 }
+    )
+  }
 
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -125,7 +141,7 @@ export async function POST(request: Request) {
       role: (body.role as string) ?? 'reader',
       permissions: (body.permissions as Record<string, unknown>) ?? {},
       created_by: user.id,
-      webhook_url: (body.webhook_url as string) ?? null,
+      webhook_url: webhookUrlValidation.value,
       webhook_secret: webhookSecret,
     })
     .select(

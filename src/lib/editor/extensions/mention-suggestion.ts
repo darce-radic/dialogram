@@ -17,7 +17,8 @@ export function createMentionSuggestion(
         .filter(
           (u) =>
             u.name.toLowerCase().includes(q) ||
-            u.email.toLowerCase().includes(q)
+            u.email.toLowerCase().includes(q) ||
+            (u.subtitle?.toLowerCase().includes(q) ?? false)
         )
         .slice(0, 8);
     },

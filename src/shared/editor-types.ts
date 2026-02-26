@@ -39,6 +39,7 @@ export interface Comment {
   threadId: string;
   authorId: string;
   content: string;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt?: string;
 }

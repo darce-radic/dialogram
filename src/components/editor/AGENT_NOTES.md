@@ -1,4 +1,11 @@
-# @EditorCore Notes — 2026-02-23
+---
+project_id: dlgprj_38fe09061632550a
+note_type: handoff
+scope: service:web
+updated_at: 2026-02-23
+owner: @EditorCore
+---
+# @EditorCore Notes â€” 2026-02-23
 
 ## Completed
 - TipTap editor with all extensions: StarterKit, Heading (h1-h6), Tables (resizable), CodeBlockLowlight (syntax highlighting)
@@ -22,8 +29,8 @@
 - Nothing
 
 ## Notes for @Foundation
-- Pre-existing TypeScript error in `src/app/(dashboard)/workspace/[workspaceId]/document/[documentId]/page.tsx:49` — `.workspaces` type mismatch on Supabase query
-- Shared types added to `/src/shared/types.ts` — please review and merge
+- Pre-existing TypeScript error in `src/app/(dashboard)/workspace/[workspaceId]/document/[documentId]/page.tsx:49` â€” `.workspaces` type mismatch on Supabase query
+- Shared types added to `/src/shared/types.ts` â€” please review and merge
 
 ## Next
 - Wire Supabase auth session into Editor props (needs @Foundation auth integration)

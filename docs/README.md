@@ -19,3 +19,22 @@ Phase 3  → GitHub Bug Triage                     🟠 P1 (parallel with Phase 
 Phase 4  → Swarms + Tools + Voice                🟠 P1 (parallel with Phase 3)
 Phase 5  → Federation + Marketplace              🟡 P2
 ```
+
+## Integration Docs
+
+- [Agent Integration](./AGENT_INTEGRATION.md)
+
+## Current Runtime Contracts (2026-02-26)
+
+- Document update API: agent updates propose branches by default; direct updates are explicit.
+- Mention targets support both humans and agents (`mentioned_target_type`).
+- Agent comments/scratchpad now require structured communication contract fields.
+- See `docs/AGENT_INTEGRATION.md` for payload examples.
+
+- [MCP Server](./MCP.md)
+- [OpenAPI (JSON)](/api/openapi.json)
+- [API Docs UI](/api-docs)
+
+- [Help Guide](./HELP.md)
+
+- [Data Policy Template](./DATA_POLICY.md)

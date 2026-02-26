@@ -1,19 +1,41 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { authenticateAgent } from '@/lib/supabase/agent-auth'
+import {
+  parseCommunicationContract,
+  parseLifecycleState,
+} from '@/lib/agents/communication-contract'
 import { publishScratchpadEvent } from '@/lib/queue/redis-pubsub'
+import { applyRouteRateLimit } from '@/lib/security/rate-limit'
 
 interface RouteContext {
   params: Promise<{ documentId: string }>
 }
 
 export async function POST(request: Request, context: RouteContext) {
+  const rateLimited = applyRouteRateLimit(request, {
+    scope: 'scratchpad.create',
+    limit: 240,
+    windowMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   const { documentId } = await context.params
 
   // Agent auth only
   const agentAuth = await authenticateAgent(
-    request.headers.get('authorization')
+    request.headers.get('authorization'),
+    request
   )
+  if (agentAuth.rateLimited) {
+    return NextResponse.json(
+      { data: null, error: 'Rate limit exceeded' },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(agentAuth.retryAfterSeconds ?? 60) },
+      }
+    )
+  }
   if (!agentAuth.authenticated || !agentAuth.agentKey) {
     return NextResponse.json(
       { data: null, error: 'Unauthorized' },
@@ -79,6 +101,27 @@ export async function POST(request: Request, context: RouteContext) {
       ? body.event_type
       : 'thinking'
 
+  const metadata =
+    body.metadata && typeof body.metadata === 'object' ? body.metadata : {}
+
+  const parsedLifecycle = parseLifecycleState(
+    (metadata as Record<string, unknown>).lifecycle_state
+  )
+  if (!parsedLifecycle.ok) {
+    return NextResponse.json(
+      { data: null, error: parsedLifecycle.error },
+      { status: 400 }
+    )
+  }
+
+  const parsedContract = parseCommunicationContract(body.communication)
+  if (!parsedContract.ok) {
+    return NextResponse.json(
+      { data: null, error: parsedContract.error },
+      { status: 400 }
+    )
+  }
+
   const { data, error } = await admin
     .from('scratchpad_events')
     .insert({
@@ -86,7 +129,11 @@ export async function POST(request: Request, context: RouteContext) {
       agent_key_id: agentAuth.agentKey.id,
       event_type: eventType,
       content: body.content,
-      metadata: body.metadata ?? {},
+      metadata: {
+        ...(metadata as Record<string, unknown>),
+        lifecycle_state: parsedLifecycle.data,
+        communication: parsedContract.data,
+      },
     })
     .select()
     .single()

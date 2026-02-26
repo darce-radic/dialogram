@@ -7,6 +7,7 @@ import {
   parseJsonBody,
   isParseError,
 } from '@/lib/supabase/route-auth'
+import { applyRouteRateLimit } from '@/lib/security/rate-limit'
 
 interface RouteContext {
   params: Promise<{ documentId: string; branchId: string }>
@@ -58,6 +59,13 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const rateLimited = applyRouteRateLimit(request, {
+    scope: 'branches.update',
+    limit: 60,
+    windowMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   const { documentId, branchId } = await context.params
 
   // PATCH requires user with owner/admin role

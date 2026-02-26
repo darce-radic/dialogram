@@ -7,6 +7,7 @@ import {
   parseJsonBody,
   isParseError,
 } from '@/lib/supabase/route-auth'
+import { applyRouteRateLimit } from '@/lib/security/rate-limit'
 
 interface RouteContext {
   params: Promise<{ documentId: string }>
@@ -42,6 +43,13 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 export async function POST(request: Request, context: RouteContext) {
+  const rateLimited = applyRouteRateLimit(request, {
+    scope: 'branches.create',
+    limit: 60,
+    windowMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   const { documentId } = await context.params
 
   const auth = await authenticateDocumentRoute(request, documentId, {
@@ -72,58 +80,62 @@ export async function POST(request: Request, context: RouteContext) {
   const authorId = getAuthorId(auth)
   const authorType = auth.type
 
-  // Fetch source document
-  const { data: sourceDoc } = await client
-    .from('documents')
-    .select('*')
-    .eq('id', documentId)
-    .is('deleted_at', null)
-    .single()
+  const { data: rpcData, error: rpcError } = await client.rpc(
+    'create_document_branch_atomic',
+    {
+      p_source_document_id: documentId,
+      p_workspace_id: workspaceId,
+      p_branch_name: branchName,
+      p_created_by: authorId,
+      p_created_by_type: authorType,
+      p_branch_doc_created_by:
+        auth.type === 'agent' ? auth.agentKey.created_by : authorId,
+      p_branch_doc_last_edited_by: authorId,
+    }
+  )
 
-  if (!sourceDoc) {
+  if (rpcError) {
+    const isMissingDoc = rpcError.message.toLowerCase().includes('not found')
     return NextResponse.json(
-      { data: null, error: 'Document not found' },
-      { status: 404 }
+      { data: null, error: isMissingDoc ? 'Document not found' : rpcError.message },
+      { status: isMissingDoc ? 404 : 500 }
     )
   }
 
-  // Create branch document (copy of source)
-  const { data: branchDoc, error: branchDocError } = await client
-    .from('documents')
-    .insert({
-      workspace_id: workspaceId,
-      folder_id: sourceDoc.folder_id,
-      title: `${sourceDoc.title} — ${branchName}`,
-      content: sourceDoc.content,
-      created_by: auth.type === 'agent' ? auth.agentKey.created_by : authorId,
-      last_edited_by: authorId,
-    })
-    .select()
-    .single()
+  const firstRow = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as
+    | { branch_id: string; branch_document_id: string }
+    | null
 
-  if (branchDocError) {
+  if (!firstRow?.branch_id || !firstRow?.branch_document_id) {
     return NextResponse.json(
-      { data: null, error: branchDocError.message },
+      { data: null, error: 'Failed to create branch payload' },
       { status: 500 }
     )
   }
 
-  // Create branch record
-  const { data: branch, error: branchError } = await client
-    .from('document_branches')
-    .insert({
-      source_document_id: documentId,
-      branch_document_id: branchDoc.id,
-      branch_name: branchName,
-      created_by: authorId,
-      created_by_type: authorType,
-    })
-    .select()
-    .single()
+  const [{ data: branch, error: branchError }, { data: branchDoc, error: branchDocError }] =
+    await Promise.all([
+      client
+        .from('document_branches')
+        .select('*')
+        .eq('id', firstRow.branch_id)
+        .single(),
+      client
+        .from('documents')
+        .select('*')
+        .eq('id', firstRow.branch_document_id)
+        .single(),
+    ])
 
-  if (branchError) {
+  if (branchError || !branch || branchDocError || !branchDoc) {
     return NextResponse.json(
-      { data: null, error: branchError.message },
+      {
+        data: null,
+        error:
+          branchError?.message ??
+          branchDocError?.message ??
+          'Failed to load created branch payload',
+      },
       { status: 500 }
     )
   }

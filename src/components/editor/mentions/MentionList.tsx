@@ -13,11 +13,17 @@ export interface MentionUser {
   name: string;
   email: string;
   avatarUrl?: string;
+  type?: "human" | "agent";
+  subtitle?: string;
 }
 
 interface MentionListProps {
   items: MentionUser[];
-  command: (item: { id: string; label: string }) => void;
+  command: (item: {
+    id: string;
+    label: string;
+    type: "human" | "agent";
+  }) => void;
 }
 
 export interface MentionListRef {
@@ -36,7 +42,11 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
       (index: number) => {
         const item = items[index];
         if (item) {
-          command({ id: item.id, label: item.name });
+          command({
+            id: item.id,
+            label: item.name,
+            type: item.type ?? "human",
+          });
         }
       },
       [items, command]
@@ -93,9 +103,16 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
               {item.name.charAt(0).toUpperCase()}
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="font-medium truncate">{item.name}</span>
+              <span className="font-medium truncate flex items-center gap-1.5">
+                {item.name}
+                {item.type === "agent" && (
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
+                    Agent
+                  </span>
+                )}
+              </span>
               <span className="text-xs text-muted-foreground truncate">
-                {item.email}
+                {item.subtitle ?? item.email}
               </span>
             </div>
           </button>

@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 
   const { data: keys, error, count } = await admin
     .from('agent_keys')
-    .select('id, name', { count: 'exact' })
+    .select('id, name, role', { count: 'exact' })
     .eq('workspace_id', workspaceId)
     .eq('is_active', true)
     .range(offset, offset + limit - 1)

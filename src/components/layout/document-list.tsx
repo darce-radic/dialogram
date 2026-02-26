@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { FileText, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { createClient } from '@/lib/supabase/client'
 import type { Document } from '@shared/types'
 
 interface DocumentListProps {
@@ -23,32 +22,32 @@ export function DocumentList({
 
   const handleCreate = async () => {
     setCreating(true)
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    let docId: string | null = null
 
-    if (!user) {
-      setCreating(false)
-      return
-    }
-
-    const { data: doc } = await supabase
-      .from('documents')
-      .insert({
-        workspace_id: workspaceId,
-        folder_id: folderId ?? null,
-        title: 'Untitled',
-        created_by: user.id,
-        position: documents.length,
+    try {
+      const response = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          folder_id: folderId ?? null,
+          title: 'Untitled',
+          position: documents.length,
+        }),
       })
-      .select()
-      .single()
+
+      const { data } = await response.json()
+      if (response.ok && data?.id) {
+        docId = data.id as string
+      }
+    } catch {
+      // Network failures are handled by leaving the current UI state.
+    }
 
     setCreating(false)
 
-    if (doc) {
-      router.push(`/workspace/${workspaceId}/document/${doc.id}`)
+    if (docId) {
+      router.push(`/workspace/${workspaceId}/document/${docId}`)
       router.refresh()
     }
   }

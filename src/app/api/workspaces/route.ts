@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { applyRouteRateLimit } from '@/lib/security/rate-limit'
 
 export async function POST(request: Request) {
+  const rateLimited = applyRouteRateLimit(request, {
+    scope: 'workspaces.create',
+    limit: 20,
+    windowMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   const supabase = await createClient()
   const {
     data: { user },

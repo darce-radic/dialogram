@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { LogOut } from 'lucide-react'
+import { LogOut, PlugZap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 
@@ -17,6 +17,14 @@ export function SidebarFooter() {
 
   return (
     <div className="border-t px-3 py-3">
+      <Button
+        variant="ghost"
+        className="mb-1 w-full justify-start text-muted-foreground"
+        onClick={() => router.push('/integrations')}
+      >
+        <PlugZap className="mr-2 h-4 w-4" />
+        Integration Quick Start
+      </Button>
       <Button
         variant="ghost"
         className="w-full justify-start text-muted-foreground"

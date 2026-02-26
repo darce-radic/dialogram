@@ -6,12 +6,20 @@ import {
   parseJsonBody,
   isParseError,
 } from '@/lib/supabase/route-auth'
+import { applyRouteRateLimit } from '@/lib/security/rate-limit'
 
 interface RouteContext {
   params: Promise<{ documentId: string; threadId: string }>
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const rateLimited = applyRouteRateLimit(request, {
+    scope: 'threads.update',
+    limit: 120,
+    windowMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   const { documentId, threadId } = await context.params
 
   const auth = await authenticateDocumentRoute(request, documentId, {
@@ -60,6 +68,13 @@ export async function PATCH(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
+  const rateLimited = applyRouteRateLimit(request, {
+    scope: 'threads.delete',
+    limit: 60,
+    windowMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   const { documentId, threadId } = await context.params
 
   const auth = await authenticateDocumentRoute(request, documentId, {

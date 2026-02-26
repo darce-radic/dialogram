@@ -92,8 +92,22 @@ export async function authenticateDocumentRoute(
 
   // Agent auth path
   const agentAuth = await authenticateAgent(
-    request.headers.get('authorization')
+    request.headers.get('authorization'),
+    request
   )
+  if (agentAuth.rateLimited) {
+    return {
+      response: NextResponse.json(
+        { data: null, error: 'Rate limit exceeded' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(agentAuth.retryAfterSeconds ?? 60),
+          },
+        }
+      ),
+    }
+  }
   if (!agentAuth.authenticated || !agentAuth.agentKey) {
     return {
       response: NextResponse.json(

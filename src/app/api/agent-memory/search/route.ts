@@ -1,11 +1,26 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { authenticateAgent } from '@/lib/supabase/agent-auth'
+import { applyRouteRateLimit } from '@/lib/security/rate-limit'
 
 export async function POST(request: Request) {
+  const rateLimited = applyRouteRateLimit(request, {
+    scope: 'agent-memory.search',
+    limit: 120,
+    windowMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   const agentAuth = await authenticateAgent(
-    request.headers.get('authorization')
+    request.headers.get('authorization'),
+    request
   )
+  if (agentAuth.rateLimited) {
+    return NextResponse.json(
+      { data: null, error: 'Rate limit exceeded' },
+      { status: 429, headers: { 'Retry-After': String(agentAuth.retryAfterSeconds ?? 60) } }
+    )
+  }
   if (!agentAuth.authenticated || !agentAuth.agentKey) {
     return NextResponse.json(
       { data: null, error: 'Unauthorized' },

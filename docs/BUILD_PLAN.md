@@ -202,3 +202,11 @@ gantt
 ```
 
 > **Note**: Phase 3 (`@DevOps`) and Phase 4 (`@Features`) run **concurrently** — start both once Phase 2 Group 2A is complete.
+
+## Current Runtime Contracts (2026-02-26)
+
+- Agent document updates default to branch proposal mode (`202`, `data.mode = "branch_proposal"`).
+- Direct agent live-document updates require `apply_directly: true` (`200`, `data.mode = "direct_update"`).
+- Agent comments and scratchpad writes require `communication` contract payload.
+- Scratchpad writes also require `metadata.lifecycle_state` enum.
+- Webhook events in active use: `thread.created`, `mention.created`, `comment.created`, `doc.updated`, `branch.created`, `branch.merged`, `branch.rejected`.
