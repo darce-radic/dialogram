@@ -9,7 +9,7 @@
 | [PRD — Product Requirements](./PRD.md) | Vision, features, architecture, and monetization |
 | [Build Plan — Prioritized Tasks](./BUILD_PLAN.md) | Phase-by-phase task breakdown with parallel groups |
 | [Agent Teams — Claude Code](./AGENT_TEAMS.md) | Agent roster, kickoff prompts, and coordination rules |
-
+| [Multi-Agent V1 Spec](./MULTI_AGENT_V1.md) | Minimal architecture and rollout plan for multi-agent collaboration |
 ## Quick Reference
 
 ```
@@ -38,3 +38,4 @@ Phase 5  → Federation + Marketplace              🟡 P2
 - [Help Guide](./HELP.md)
 
 - [Data Policy Template](./DATA_POLICY.md)
+

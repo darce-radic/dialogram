@@ -25,6 +25,11 @@ test('openapi includes required integration paths', () => {
     '/agent-memory',
     '/agent-memory/search',
     '/agent-memory/{memoryId}',
+    '/agent-runs',
+    '/agent-runs/{runId}',
+    '/agent-runs/{runId}/board',
+    '/agent-runs/{runId}/tasks',
+    '/agent-runs/{runId}/tasks/{taskId}',
   ]
 
   for (const path of required) {

@@ -908,5 +908,92 @@ export const openApiSpec = {
         },
       },
     },
+    '/agent-runs': {
+      get: {
+        summary: 'List agent runs',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': { description: 'Runs listed' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+        },
+      },
+      post: {
+        summary: 'Create agent run',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '201': { description: 'Run created' },
+          '400': { description: 'Validation error' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '409': { description: 'Active run already exists' },
+          '429': { description: 'Rate limited' },
+        },
+      },
+    },
+    '/agent-runs/{runId}': {
+      get: {
+        summary: 'Get run details and summary',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': { description: 'Run fetched' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Run not found' },
+        },
+      },
+      patch: {
+        summary: 'Update run status or settings',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': { description: 'Run updated' },
+          '400': { description: 'Validation error' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Run not found' },
+          '429': { description: 'Rate limited' },
+        },
+      },
+    },
+    '/agent-runs/{runId}/board': {
+      get: {
+        summary: 'Get run board view',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': { description: 'Board fetched' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Run not found' },
+        },
+      },
+    },
+    '/agent-runs/{runId}/tasks': {
+      post: {
+        summary: 'Create run task',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '201': { description: 'Task created' },
+          '400': { description: 'Validation error' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Run not found' },
+          '429': { description: 'Rate limited' },
+        },
+      },
+    },
+    '/agent-runs/{runId}/tasks/{taskId}': {
+      patch: {
+        summary: 'Update run task',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': { description: 'Task updated' },
+          '400': { description: 'Validation error' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' },
+          '404': { description: 'Run/task not found' },
+          '429': { description: 'Rate limited' },
+        },
+      },
+    },
   },
 } as const

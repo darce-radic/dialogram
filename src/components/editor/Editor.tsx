@@ -16,9 +16,10 @@ import { CommentSidebar } from "./comments/CommentSidebar";
 import { ScratchpadPanel } from "./scratchpad/ScratchpadPanel";
 import { BranchList } from "./branches/BranchList";
 import { BranchDiffView } from "./branches/BranchDiffView";
+import { AgentRunBoard } from "./runs/AgentRunBoard";
 import { Button } from "@/components/ui/button";
 import { EditorErrorBoundary } from "./EditorErrorBoundary";
-import { MessageSquare, Brain, GitBranch } from "lucide-react";
+import { MessageSquare, Brain, GitBranch, Workflow } from "lucide-react";
 import Mention from "@tiptap/extension-mention";
 import { createMentionSuggestion } from "@/lib/editor/extensions/mention-suggestion";
 import type { MentionUser } from "@/components/editor/mentions/MentionList";
@@ -26,7 +27,13 @@ import type { User } from "@/shared/editor-types";
 import type { DocumentBranch } from "@shared/types";
 import { toast } from "sonner";
 
-type RightPanel = "comments" | "scratchpad" | "branches" | "branch-diff" | null;
+type RightPanel =
+  | "comments"
+  | "scratchpad"
+  | "branches"
+  | "branch-diff"
+  | "runs"
+  | null;
 type SaveStatus = "idle" | "saving" | "saved" | "proposed" | "error";
 
 interface EditorProps {
@@ -45,6 +52,9 @@ export function Editor({
   token,
 }: EditorProps) {
   const [mentionUsers, setMentionUsers] = useState<MentionUser[]>([]);
+  const [workspaceAgents, setWorkspaceAgents] = useState<
+    { id: string; name: string; role?: string }[]
+  >([]);
   const [agentNames, setAgentNames] = useState<Record<string, string>>({});
   const [activePanel, setActivePanel] = useState<RightPanel>("comments");
   const [branches, setBranches] = useState<DocumentBranch[]>([]);
@@ -77,18 +87,25 @@ export function Editor({
             }))
           : [];
 
-        const agents: MentionUser[] = Array.isArray(agentsRes?.data)
-          ? agentsRes.data.map((agent: Record<string, unknown>) => ({
-              id: agent.id as string,
-              name: (agent.name as string) || "Agent",
-              email: "",
-              type: "agent" as const,
-              subtitle:
-                typeof agent.role === "string"
-                  ? `${agent.role} agent`
-                  : "agent",
-            }))
-          : [];
+        const agentRows: { id: string; name: string; role?: string }[] =
+          Array.isArray(agentsRes?.data)
+            ? agentsRes.data.map((agent: Record<string, unknown>) => ({
+                id: String(agent.id ?? ""),
+                name: String(agent.name ?? "Agent"),
+                role:
+                  typeof agent.role === "string"
+                    ? (agent.role as string)
+                    : undefined,
+              }))
+            : [];
+
+        const agents: MentionUser[] = agentRows.map((agent) => ({
+          id: agent.id,
+          name: agent.name,
+          email: "",
+          type: "agent" as const,
+          subtitle: agent.role ? `${agent.role} agent` : "agent",
+        }));
 
         const map: Record<string, string> = {};
         for (const agent of agentsRes?.data ?? []) {
@@ -97,6 +114,7 @@ export function Editor({
           }
         }
         setAgentNames(map);
+        setWorkspaceAgents(agentRows);
         setMentionUsers([...humanUsers, ...agents]);
       })
       .catch(() => {});
@@ -327,6 +345,15 @@ export function Editor({
             >
               <GitBranch className="h-4 w-4" />
             </Button>
+            <Button
+              size="icon"
+              variant={activePanel === "runs" ? "default" : "ghost"}
+              className="h-7 w-7"
+              onClick={() => togglePanel("runs")}
+              title="Agent Run Board"
+            >
+              <Workflow className="h-4 w-4" />
+            </Button>
             {!isCollabActive && saveStatus !== "idle" && (
               <span className="text-xs text-muted-foreground rounded border px-2 py-1">
                 {saveStatus === "saving" && "Saving..."}
@@ -393,6 +420,14 @@ export function Editor({
           onApprove={() => handleBranchAction("merged")}
           onReject={() => handleBranchAction("rejected")}
           onBack={() => setActivePanel("branches")}
+        />
+      )}
+
+      {activePanel === "runs" && (
+        <AgentRunBoard
+          workspaceId={workspaceId}
+          documentId={documentId}
+          agentOptions={workspaceAgents}
         />
       )}
     </div>
